@@ -4,6 +4,8 @@ Use these examples as reference for implementing React conventions.
 
 ## API Setup
 
+This section demonstrates how to set up a global Axios instance for API calls. The centralized setup ensures consistent headers, base URL, and error handling across all API requests.
+
 ```typescript
 // api.ts (global API setup)
 import axios from "axios";
@@ -18,6 +20,8 @@ export { api };
 ```
 
 ## Global Types
+
+These type definitions provide a consistent interface for paginated API requests and responses. They are used throughout the application to ensure type safety when working with API data.
 
 ```typescript
 // types.ts (global types)
@@ -50,6 +54,8 @@ export type { PaginationReq, PaginatedRes };
 
 ## Global Utils
 
+Utility functions provide reusable logic across the application. The `getDefaultSearchValues` function normalizes search parameters for consistent pagination, sorting, and filtering behavior.
+
 ```typescript
 // utils.ts (global utils)
 import { PaginationReq } from "./types.ts";
@@ -76,6 +82,8 @@ export { API_URL };
 ```
 
 ## Feature Types
+
+Type definitions for a feature should be comprehensive, covering entity types, API payloads, and component props. This example shows the complete type system for a "Projects" feature, following the naming conventions outlined in vite.md.
 
 ```typescript
 // projects/Projects.types.ts
@@ -153,6 +161,13 @@ export { PROJECTS_ENDPOINT, PROJECTS_QUERY_KEY, PROJECTS_MUTATION_KEY };
 ```
 
 ## Feature API Integration
+
+The API integration layer follows a consistent pattern for each CRUD operation:
+1. A function to make the API call (`fetchProject`, `createProject`, etc.)
+2. A query options function for GET operations (`projectGetQueryOptions`)
+3. A mutation hook for POST/PUT/DELETE operations (`useCreateProject`)
+
+This separation allows for reuse across components and provides a clean interface for data fetching.
 
 ```typescript
 // projects/Projects.api.ts
@@ -259,6 +274,12 @@ export {
 ```
 
 ## Form Component
+
+Form components use TanStack Form with Zod validation to create type-safe, validated forms. This example demonstrates:
+1. Generic type parameters to support both creation and update operations
+2. Form field validation with Zod schemas
+3. Proper error handling and display
+4. Conditional rendering based on form state
 
 ```typescript
 // projects/Projects.form.tsx
@@ -381,6 +402,12 @@ export { ProjectsForm };
 
 ## Table Component
 
+Table components display collections of entities with actions for CRUD operations. This example shows:
+1. Rendering a list of items with proper key usage
+2. Handling row-level actions through a dropdown menu
+3. Formatting data for display
+4. Implementing event handlers for table interactions
+
 ```typescript
 // projects/Projects.table.tsx
 import type { MouseEvent } from "react";
@@ -482,6 +509,13 @@ export { ProjectsTable };
 ```
 
 ## Page Component
+
+Page components are the top-level components that handle routing, data fetching, and state management for a specific route. This example demonstrates:
+1. Using TanStack Router for navigation and search parameters
+2. Managing modal state for create and delete operations
+3. Implementing data fetching with TanStack Query
+4. Handling mutations with proper loading, success, and error states
+5. Organizing callback functions by purpose
 
 ```typescript
 // projects/Projects.page.tsx
@@ -701,6 +735,12 @@ export { ProjectsPage };
 
 ## Modal Component
 
+The Modal component is a reusable dialog that supports forms, confirmations, and information display. This example shows:
+1. Using Headless UI for accessible modal implementation
+2. Supporting form submission through formId prop
+3. Handling loading states during async operations
+4. Managing modal visibility with proper transitions
+
 ```typescript
 // components/common/modal/Modal.tsx
 import { Fragment, ReactNode } from "react";
@@ -813,6 +853,11 @@ export { Modal };
 
 ## Empty State Component
 
+Empty state components provide a user-friendly interface when no data is available. This example demonstrates:
+1. Clear visual indication of the empty state
+2. Actionable guidance for the user
+3. Consistent styling with the rest of the application
+
 ```typescript
 // projects/Projects.empty.tsx
 import { PlusIcon } from "@heroicons/react/24/outline";
@@ -882,7 +927,11 @@ export { ProjectsEmpty };
 
 ## Routing Conventions
 
+These examples demonstrate how to implement routing with TanStack Router following the conventions in vite.md.
+
 ### TanStack Router Integration
+
+This example shows both basic routes and data-dependent routes with proper type safety and data prefetching.
 
 ```typescript
 // Basic route without data dependencies
@@ -914,6 +963,8 @@ export const Route = createFileRoute("/_app/p/$puuid/")({
 
 ### Search Parameters
 
+This example shows how to normalize and validate search parameters for consistent pagination, sorting, and filtering.
+
 ```typescript
 const searchParams = {
   ...getDefaultSearchValues<EntityType>(search),
@@ -922,6 +973,8 @@ const searchParams = {
 ```
 
 ### Data Loading
+
+This example demonstrates how to structure API payloads based on route parameters and search values for data loading.
 
 ```typescript
 const payload: EntityListGetPayload = {
