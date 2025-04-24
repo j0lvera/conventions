@@ -11,6 +11,25 @@ When writing React code, you MUST follow these principles.
 - Consider performance implications of your implementation choices
 - Follow the user's requirements carefully & to the letter
 
+## Quick Reference
+
+### Critical Conventions
+- **Project Structure**: Organize by features with clear separation of concerns
+- **File Naming**: Use PascalCase for components, camelCase for utilities
+- **Component Organization**: Each feature has dedicated .types.ts, .api.ts, .page.tsx, .form.tsx, .table.tsx files
+- **Form Handling**: Use TanStack Form with Zod validation
+- **Data Fetching**: Use TanStack Query for all server state
+- **Routing**: Use TanStack Router with file-based routing
+- **Type Safety**: Define explicit types for all API payloads and component props
+
+### Common Patterns
+- **API Functions**: `fetch{Entity}`, `create{Entity}`, `update{Entity}`, `delete{Entity}`
+- **Query Hooks**: `use{Action}{Entity}` (e.g., `useCreateProject`)
+- **Component Props**: `{Component}Props` (e.g., `ProjectsTableProps`)
+- **API Payloads**: `{Entity}{Action}Payload` (e.g., `ProjectCreatePayload`)
+- **Query Keys**: `{ENTITY}_QUERY_KEY` (e.g., `PROJECTS_QUERY_KEY`)
+- **Callbacks**: `onSubmit`, `onView`, `onEdit`, `onDelete`, `onCreate`, `onUpdate`
+
 ## Priority Levels
 
 Conventions in this document are marked with priority levels:
