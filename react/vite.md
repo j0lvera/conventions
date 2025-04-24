@@ -153,6 +153,16 @@ const useCreateProject = () => {
 - Use TanStack Router for navigation and search params
 - Implement proper loading and error states
 
+#### Page Component Structure
+
+- Organize code in consistent sections with clear comments:
+  1. Routing setup (TanStack Router APIs)
+  2. State management (modal states, selected items)
+  3. Data fetching (queries with proper options)
+  4. Mutations (create, update, delete operations)
+  5. Callback functions (grouped by purpose)
+  6. JSX rendering
+
 ```typescript
 const ProjectsPage = () => {
   // Routing
@@ -160,28 +170,117 @@ const ProjectsPage = () => {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   
+  // Component state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  
   // Data fetching
   const projectsQuery = useSuspenseQuery(
     projectListQueryOptions(projectListPayload)
   );
   
-  // Component state
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // Mutations
+  // Create a Project
+  const createProject = useMutation({
+    mutationFn: (payload: ProjectCreatePayload) => createProjectApi(payload),
+    onSuccess: () => {
+      projectsQuery.refetch();
+      setIsCreateModalOpen(false);
+    },
+  });
   
-  // Event handlers
+  const onCreate = (payload: ProjectCreatePayload) => {
+    let toastId = toast.loading("Creating project...");
+    createProject.mutate(payload, {
+      onSuccess: () => {
+        toast.success("Project created successfully", { id: toastId });
+      },
+      onError: () => {
+        toast.error("Unable to create project", { id: toastId });
+      },
+    });
+  };
+  
+  // Delete a Project
+  const deleteProject = useMutation({
+    mutationFn: (uuid: string) => deleteProjectApi(uuid),
+    onSuccess: () => {
+      projectsQuery.refetch();
+      setIsDeleteModalOpen(false);
+      setSelectedProject(null);
+    },
+  });
+  
+  const onDelete = (project: Project) => {
+    let toastId = toast.loading("Deleting project...");
+    deleteProject.mutate(project.uuid, {
+      onSuccess: () => {
+        toast.success("Project deleted successfully", { id: toastId });
+      },
+      onError: () => {
+        toast.error("Unable to delete project", { id: toastId });
+      },
+    });
+  };
+  
+  // Table callbacks
   const onTableItemView = async (project: Project) => {
     await navigate({
       to: "/p/$puuid",
       params: { puuid: project.uuid },
-      search: { /* search params */ },
+      search: { /* preserve search params */ },
     });
   };
   
+  const onTableItemDelete = (project: Project) => {
+    setSelectedProject(project);
+    setIsDeleteModalOpen(true);
+  };
+  
+  // Modal callbacks
+  const onCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setSelectedProject(null);
+  };
+  
   return (
-    // JSX
+    // JSX with conditional rendering based on data state
   );
 };
 ```
+
+#### Page Component Conventions
+
+- **State Management**:
+  - Use boolean flags for modal visibility (`isDeleteModalOpen`, `isCreateModalOpen`)
+  - Track selected items for operations (`selectedProject`)
+  - Reset state after operations complete
+
+- **Data Fetching**:
+  - Use `useSuspenseQuery` with consistent query options
+  - Prepare payloads from route parameters
+  - Refetch queries after mutations
+
+- **Mutation Patterns**:
+  - Implement consistent toast notification pattern (loading → success/error)
+  - Clean up state after successful operations
+  - Group related mutation code together
+
+- **Callback Organization**:
+  - Group by purpose (table callbacks, modal callbacks, form callbacks)
+  - Use consistent naming: `onTableItemX`, `onCreate`, `onDelete`, `onClose`
+  - Implement clear separation with comments
+
+- **Routing Integration**:
+  - Use TanStack Router APIs consistently
+  - Preserve search parameters during navigation
+  - Pass proper parameters in navigation functions
+
+- **UI Structure**:
+  - Render conditionally based on data state (empty vs. populated)
+  - Implement consistent header with title and action buttons
+  - Use modals for destructive and creation actions
 
 ### Table Components
 
