@@ -942,6 +942,324 @@ const ProjectsEmpty = ({ onCreate }: ProjectsEmptyProps) => {
 export { ProjectsEmpty };
 ```
 
+## Error Handling Patterns
+
+Proper error handling is critical for creating robust applications. These examples demonstrate best practices for handling errors in different contexts.
+
+### API Error Handling
+
+This example shows how to implement error handling in API functions with proper error typing and messaging.
+
+```typescript
+// Error types
+interface ApiError {
+  message: string;
+  code: string;
+  status: number;
+}
+
+// API function with error handling
+const fetchProject = async (payload: ProjectGetPayload): Promise<Project> => {
+  try {
+    const res: AxiosResponse<Project> = await api.get(
+      PROJECTS_ENDPOINT + payload.uuid + "/"
+    );
+    return res.data;
+  } catch (error) {
+    // Handle Axios errors
+    if (axios.isAxiosError(error) && error.response) {
+      const apiError: ApiError = {
+        message: error.response.data?.message || "Failed to fetch project",
+        code: error.response.data?.code || "UNKNOWN_ERROR",
+        status: error.response.status,
+      };
+      
+      // Log the error for debugging
+      console.error("API Error:", apiError);
+      
+      // Throw a formatted error for consistent handling
+      throw apiError;
+    }
+    
+    // Handle unexpected errors
+    console.error("Unexpected error:", error);
+    throw {
+      message: "An unexpected error occurred",
+      code: "UNKNOWN_ERROR",
+      status: 500,
+    };
+  }
+};
+```
+
+### Query Error Handling
+
+This example demonstrates how to handle query errors with TanStack Query, including error boundaries and fallback UI.
+
+```typescript
+// Query with error handling
+const projectQueryOptions = (payload: ProjectGetPayload) => {
+  return queryOptions({
+    queryKey: [PROJECTS_QUERY_KEY, payload],
+    queryFn: () => fetchProject(payload),
+    retry: (failureCount, error: ApiError) => {
+      // Don't retry for client errors (4xx)
+      if (error.status >= 400 && error.status < 500) {
+        return false;
+      }
+      // Retry server errors (5xx) up to 3 times
+      return failureCount < 3;
+    },
+  });
+};
+
+// Component with error handling
+const ProjectDetail = () => {
+  const params = useParams();
+  
+  // Use error boundary for query errors
+  return (
+    <ErrorBoundary
+      fallback={({ error, resetErrorBoundary }) => (
+        <ErrorFallback 
+          error={error as ApiError} 
+          resetErrorBoundary={resetErrorBoundary}
+        />
+      )}
+    >
+      <Suspense fallback={<LoadingSpinner />}>
+        <ProjectDetailContent uuid={params.uuid} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+
+// Error fallback component
+const ErrorFallback = ({ 
+  error, 
+  resetErrorBoundary 
+}: { 
+  error: ApiError; 
+  resetErrorBoundary: () => void;
+}) => {
+  return (
+    <div className="p-6 bg-red-50 rounded-lg">
+      <h3 className="text-lg font-medium text-red-800">
+        {error.status === 404 ? "Project not found" : "Error loading project"}
+      </h3>
+      <p className="mt-2 text-sm text-red-700">{error.message}</p>
+      <div className="mt-4">
+        <Button onClick={resetErrorBoundary} variant="secondary">
+          Try again
+        </Button>
+      </div>
+    </div>
+  );
+};
+```
+
+### Form Error Handling
+
+This example shows how to handle form validation errors and submission errors.
+
+```typescript
+// Form with error handling
+const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
+  formId,
+  onSubmit,
+  defaultValues,
+}: ProjectsFormProps<T>) => {
+  // Track server errors separately from form validation
+  const [serverError, setServerError] = useState<string | null>(null);
+  
+  const form = useAppForm({
+    defaultValues: {
+      url: defaultValues?.url ?? "",
+      type: defaultValues?.type ?? "WORDPRESS",
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        // Clear any previous server errors
+        setServerError(null);
+        
+        // Submit the form
+        await onSubmit?.(value as T);
+      } catch (error) {
+        // Handle submission errors
+        if ((error as ApiError).message) {
+          setServerError((error as ApiError).message);
+        } else {
+          setServerError("An unexpected error occurred. Please try again.");
+        }
+        
+        // Return false to prevent form from resetting on error
+        return false;
+      }
+    },
+  });
+
+  return (
+    <form id={formId} onSubmit={form.handleSubmit}>
+      {/* Display server errors at the top of the form */}
+      {serverError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          {serverError}
+        </div>
+      )}
+      
+      <form.Field
+        name="url"
+        validators={{
+          onChange: z.string().url("Invalid URL"),
+          onBlur: z.string().url("Invalid URL"),
+        }}
+      >
+        {(field) => (
+          <div>
+            <Label htmlFor={field.name}>URL</Label>
+            <Input
+              id={field.name}
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+              onBlur={field.handleBlur}
+              invalid={field.state.meta.errors.length > 0}
+            />
+            {field.state.meta.errors.length > 0 && (
+              <ErrorMessage>
+                {field.state.meta.errors[0].message}
+              </ErrorMessage>
+            )}
+          </div>
+        )}
+      </form.Field>
+      
+      {/* Form actions */}
+      <div className="mt-4 flex justify-end">
+        <Button type="submit" disabled={!form.state.canSubmit || form.state.isSubmitting}>
+          {form.state.isSubmitting ? "Submitting..." : "Submit"}
+        </Button>
+      </div>
+    </form>
+  );
+};
+```
+
+### Mutation Error Handling
+
+This example demonstrates how to handle errors in mutation operations with proper user feedback.
+
+```typescript
+// Component with mutation error handling
+const ProjectsPage = () => {
+  // State for tracking specific error messages
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  
+  // Delete mutation with error handling
+  const deleteProject = useDeleteProject();
+  
+  const onDelete = () => {
+    if (selectedProject) {
+      // Clear previous errors
+      setDeleteError(null);
+      
+      // Show loading toast
+      let toastId = toast.loading("Deleting project...");
+      
+      deleteProject.mutate(selectedProject.uuid, {
+        onSuccess: () => {
+          // Handle success
+          projectsQuery.refetch();
+          setIsDeleteModalOpen(false);
+          setSelectedProject(null);
+          toast.success("Project deleted successfully", { id: toastId });
+        },
+        onError: (error) => {
+          // Handle specific error cases
+          if ((error as ApiError).status === 403) {
+            setDeleteError("You don't have permission to delete this project.");
+            toast.error("Permission denied", { id: toastId });
+          } else if ((error as ApiError).status === 409) {
+            setDeleteError("This project is currently in use and cannot be deleted.");
+            toast.error("Cannot delete project", { id: toastId });
+          } else {
+            // Generic error handling
+            setDeleteError((error as ApiError).message || "Failed to delete project");
+            toast.error("Unable to delete project", { id: toastId });
+          }
+        },
+      });
+    }
+  };
+  
+  // In the modal component, display the error
+  return (
+    <Modal
+      title="Delete Project"
+      isOpen={isDeleteModalOpen}
+      onConfirm={onDelete}
+      onClose={() => {
+        setIsDeleteModalOpen(false);
+        setDeleteError(null);
+      }}
+    >
+      <p>Are you sure you want to delete this project?</p>
+      
+      {/* Display error message if present */}
+      {deleteError && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          {deleteError}
+        </div>
+      )}
+    </Modal>
+  );
+};
+```
+
+### Global Error Handling
+
+This example shows how to implement global error handling for uncaught exceptions.
+
+```typescript
+// In your main.tsx or App.tsx
+import { ErrorBoundary } from 'react-error-boundary';
+
+const GlobalErrorFallback = ({ error, resetErrorBoundary }) => {
+  // Log the error to a service like Sentry
+  useEffect(() => {
+    console.error('Global error:', error);
+    // logErrorToService(error);
+  }, [error]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold text-red-600 mb-4">
+          Something went wrong
+        </h2>
+        <p className="text-gray-700 mb-4">
+          The application encountered an unexpected error. Our team has been notified.
+        </p>
+        <div className="mt-6">
+          <Button onClick={resetErrorBoundary}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
+  return (
+    <ErrorBoundary FallbackComponent={GlobalErrorFallback}>
+      <Router>
+        {/* Your app routes */}
+      </Router>
+    </ErrorBoundary>
+  );
+};
+```
+
 ## Project Structure
 
 ```
