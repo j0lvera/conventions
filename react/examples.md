@@ -2,7 +2,7 @@
 
 Use these examples as reference for implementing React conventions.
 
-## API Setup
+## API Setup: Centralized HTTP Client Configuration
 
 This section demonstrates how to set up a global Axios instance for API calls. The centralized setup ensures consistent headers, base URL, and error handling across all API requests.
 
@@ -19,7 +19,7 @@ const api = axios.create({
 export { api };
 ```
 
-## Global Types
+## Global Types: Type-Safe Pagination Patterns
 
 These type definitions provide a consistent interface for paginated API requests and responses. They are used throughout the application to ensure type safety when working with API data.
 
@@ -52,7 +52,7 @@ interface PaginationReq<T> {
 export type { PaginationReq, PaginatedRes };
 ```
 
-## Global Utils
+## Global Utils: Search Parameter Normalization
 
 Utility functions provide reusable logic across the application. The `getDefaultSearchValues` function normalizes search parameters for consistent pagination, sorting, and filtering behavior.
 
@@ -81,7 +81,7 @@ const API_URL = "/api";
 export { API_URL };
 ```
 
-## Feature Types
+## Feature Types: Comprehensive Type System for a Feature
 
 Type definitions for a feature should be comprehensive, covering entity types, API payloads, and component props. This example shows the complete type system for a "Projects" feature, following the naming conventions outlined in vite.md.
 
@@ -160,7 +160,7 @@ const PROJECTS_MUTATION_KEY = "MUTATE_PROJECTS";
 export { PROJECTS_ENDPOINT, PROJECTS_QUERY_KEY, PROJECTS_MUTATION_KEY };
 ```
 
-## Feature API Integration
+## Feature API Integration: CRUD Operations with TanStack Query
 
 The API integration layer follows a consistent pattern for each CRUD operation:
 1. A function to make the API call (`fetchProject`, `createProject`, etc.)
@@ -273,7 +273,7 @@ export {
 };
 ```
 
-## Form Component
+## Form Component: Type-Safe Forms with TanStack Form and Zod
 
 Form components use TanStack Form with Zod validation to create type-safe, validated forms. This example demonstrates:
 1. Generic type parameters to support both creation and update operations
@@ -400,7 +400,7 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
 export { ProjectsForm };
 ```
 
-## Table Component
+## Table Component: Data Display with Row-Level Actions
 
 Table components display collections of entities with actions for CRUD operations. This example shows:
 1. Rendering a list of items with proper key usage
@@ -508,7 +508,7 @@ const ProjectsTable: ProjectsTableComponent = ({ data, onView, onDelete }) => {
 export { ProjectsTable };
 ```
 
-## Page Component
+## Page Component: Orchestrating Data and UI at the Route Level
 
 Page components are the top-level components that handle routing, data fetching, and state management for a specific route. This example demonstrates:
 1. Using TanStack Router for navigation and search parameters
@@ -773,7 +773,7 @@ export { ProjectsPage };
 5. **Toast Integration**: All mutations include toast notifications for loading, success, and error states
 6. **Modal Pattern**: Modals are conditionally rendered with appropriate props
 
-## Modal Component
+## Modal Component: Reusable Dialog with Form Integration
 
 The Modal component is a reusable dialog that supports forms, confirmations, and information display. This example shows:
 1. Using Headless UI for accessible modal implementation
@@ -891,7 +891,7 @@ const Modal = ({
 export { Modal };
 ```
 
-## Empty State Component
+## Empty State Component: User-Friendly Zero Data States
 
 Empty state components provide a user-friendly interface when no data is available. This example demonstrates:
 1. Clear visual indication of the empty state
@@ -942,11 +942,11 @@ const ProjectsEmpty = ({ onCreate }: ProjectsEmptyProps) => {
 export { ProjectsEmpty };
 ```
 
-## Error Handling Patterns
+## Error Handling Patterns: Robust Error Management Strategies
 
 Proper error handling is critical for creating robust applications. These examples demonstrate best practices for handling errors in different contexts.
 
-### API Error Handling
+### API Error Handling: Typed Error Responses
 
 This example shows how to implement error handling in API functions with proper error typing and messaging.
 
@@ -992,7 +992,7 @@ const fetchProject = async (payload: ProjectGetPayload): Promise<Project> => {
 };
 ```
 
-### Query Error Handling
+### Query Error Handling: TanStack Query Error Boundaries
 
 This example demonstrates how to handle query errors with TanStack Query, including error boundaries and fallback UI.
 
@@ -1058,7 +1058,7 @@ const ErrorFallback = ({
 };
 ```
 
-### Form Error Handling
+### Form Error Handling: Validation and Submission Errors
 
 This example shows how to handle form validation errors and submission errors.
 
@@ -1144,7 +1144,7 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
 };
 ```
 
-### Mutation Error Handling
+### Mutation Error Handling: User Feedback for Failed Operations
 
 This example demonstrates how to handle errors in mutation operations with proper user feedback.
 
@@ -1215,7 +1215,7 @@ const ProjectsPage = () => {
 };
 ```
 
-### Global Error Handling
+### Global Error Handling: Application-Wide Error Boundaries
 
 This example shows how to implement global error handling for uncaught exceptions.
 
@@ -1260,7 +1260,7 @@ const App = () => {
 };
 ```
 
-## Project Structure
+## Project Structure: Feature-Based Organization
 
 ```
 /src
@@ -1283,7 +1283,7 @@ const App = () => {
   /utils.ts                 # Global utility functions
 ```
 
-## Routing Conventions
+## Routing Conventions: Type-Safe Routing with TanStack Router
 
 These examples demonstrate how to implement routing with TanStack Router following the conventions in vite.md.
 
