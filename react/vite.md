@@ -26,7 +26,8 @@ This document outlines our React development conventions when using Vite as the 
       [Feature].utils.ts    # Utility functions
       [Feature].page.tsx    # Page component
       [Feature].form.tsx    # Form component
-      [Feature].table.tsx   # Table component
+      [Feature].table.tsx   # Table component (container with logic)
+      [Feature].detail.tsx  # Detail component for single resource
       [Feature].empty.tsx   # Empty state component
       /components           # Feature-specific components
   /components
@@ -48,6 +49,7 @@ This document outlines our React development conventions when using Vite as the 
 - **Page Components**: Suffixed with `.page.tsx` (`Projects.page.tsx`)
 - **Form Components**: Suffixed with `.form.tsx` (`Projects.form.tsx`)
 - **Table Components**: Suffixed with `.table.tsx` (`Projects.table.tsx`)
+- **Detail Components**: Suffixed with `.detail.tsx` (`Projects.detail.tsx`)
 - **Empty State Components**: Suffixed with `.empty.tsx` (`Projects.empty.tsx`)
 
 ### Types/Interfaces
@@ -284,10 +286,12 @@ const ProjectsPage = () => {
 
 ### Table Components
 
-- Table components display data in a structured format with consistent styling
+- Table components act as container components with both presentation and logic
 - Follow the pattern: `{Feature}Table` (e.g., `ProjectsTable`)
 - Use shared UI table components (`Table`, `TableHead`, `TableRow`, etc.)
 - Implement standardized props for data and callbacks
+- Include pagination controls for navigating large datasets
+- Provide UI elements for CRUD operations (create, view, edit, delete)
 
 ```typescript
 const ProjectsTable: ProjectsTableComponent = ({
@@ -496,6 +500,62 @@ const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     isLoading={false}
   />
 </Modal>
+```
+
+## Detail Components
+
+- Detail components display comprehensive information about a single resource
+- Follow the pattern: `{Feature}Detail` (e.g., `ProjectDetail`)
+- Typically rendered at resource-specific routes (e.g., "/projects/:uuid")
+- May include related data from other entities
+- Provide actions relevant to the specific resource (edit, delete, etc.)
+
+```typescript
+const ProjectDetail: ProjectDetailComponent = ({
+  project,
+  onEdit,
+  onDelete,
+}) => {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">{project.name}</h2>
+        <div className="space-x-2">
+          <Button onClick={() => onEdit?.(project)}>Edit</Button>
+          <Button variant="destructive" onClick={() => onDelete?.(project)}>Delete</Button>
+        </div>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">URL</p>
+              <p>{project.url}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Created</p>
+              <p>{formatDate(project.created_at)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Related data sections */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Activity list or related components */}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 ```
 
 ## Empty States
