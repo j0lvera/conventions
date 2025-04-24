@@ -183,6 +183,86 @@ const ProjectsPage = () => {
 };
 ```
 
+### Table Components
+
+- Table components display data in a structured format with consistent styling
+- Follow the pattern: `{Feature}Table` (e.g., `ProjectsTable`)
+- Use shared UI table components (`Table`, `TableHead`, `TableRow`, etc.)
+- Implement standardized props for data and callbacks
+
+```typescript
+const ProjectsTable: ProjectsTableComponent = ({
+  data,
+  onView,
+  onEdit,
+  onDelete,
+}) => {
+  // Event handlers
+  const handleOnDelete = (
+    event: MouseEvent<HTMLButtonElement>,
+    project: Project
+  ) => {
+    event.stopPropagation();
+    onDelete?.(project);
+  };
+
+  return (
+    <Table>
+      <TableHead>
+        <TableRow>
+          <TableHeader>Name</TableHeader>
+          <TableHeader>URL</TableHeader>
+          <TableHeader className="text-right">Actions</TableHeader>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {data.map((project) => (
+          <TableRow key={project.uuid}>
+            <TableCell>{project.name}</TableCell>
+            <TableCell>{project.url.replace("https://", "")}</TableCell>
+            <TableCell className="text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Open menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onView?.(project)}>
+                    View
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit?.(project)}>
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => handleOnDelete(e, project)}
+                    className="text-destructive"
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+};
+```
+
+#### Table Component Conventions
+
+- Use entity UUID as the key for list items
+- Format data appropriately for display (e.g., URL formatting)
+- Implement consistent action patterns with dropdown menus
+- Use optional chaining for callback props (e.g., `onView?.(project)`)
+- Prevent default behavior and stop propagation when needed
+- Include proper accessibility attributes (e.g., `sr-only` for screen readers)
+- Apply consistent TailwindCSS classes for styling
+
 ### Props Typing
 
 - Define explicit interfaces for component props
