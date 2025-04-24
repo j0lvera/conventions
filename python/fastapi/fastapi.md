@@ -44,6 +44,35 @@ Each package should contain these standard components:
 - Keep functions focused on a single responsibility
 - Write unit tests for all business logic
 
+## Method Naming Conventions
+
+When implementing data retrieval methods, follow these naming patterns consistently:
+
+- `get_one`: Retrieve a single resource by its identifier (usually UUID or ID)
+- `get_list`: Retrieve all resources (without pagination) that match certain criteria
+- `get_plist`: Retrieve a paginated list of resources with support for:
+  - Pagination (limit/offset)
+  - Sorting (sort_by/sort_direction)
+  - Filtering (filter parameters)
+
+These method names should be used consistently across all layers (store, service, handler) to maintain a clear understanding of the method's purpose and behavior.
+
+### Example:
+
+```python
+# Store layer
+async def get_one(self, payload: ResourceGetPayload) -> Resource:
+    # Retrieve a single resource by ID
+
+async def get_list(self, payload: ResourceGetListPayload) -> list[Resource]:
+    # Retrieve all resources matching criteria (no pagination)
+
+async def get_plist(self, payload: ResourceGetPListPayload) -> tuple[list[Resource], int]:
+    # Retrieve paginated resources with total count
+```
+
+The corresponding service layer methods should follow the same naming pattern.
+
 ## Logging
 
 - Logging should primarily happen at the router (handler) level
@@ -63,10 +92,33 @@ Each package should contain these standard components:
 
 ## Error Handling
 
-- Use custom exceptions defined in errors.py
-- Handle exceptions at appropriate levels
-- Log errors with appropriate severity
-- Return clear error messages to clients
+### Store Layer
+- Store methods should let database/ORM exceptions propagate
+- No exception handling or transformation should happen at this layer
+- Focus on raw data access operations
+
+### Service Layer
+- Service methods should catch implementation-specific exceptions (e.g., SQLAlchemy's NoResultFound)
+- Transform these into domain-specific exceptions
+- This keeps implementation details hidden from API consumers
+- Example:
+  ```python
+  try:
+      result = await self.store.get_one(id)
+      return result
+  except NoResultFound:
+      raise ResourceNotFoundError(resource_type="User", identifier=id)
+  ```
+
+### Handler Layer
+- Handlers should generally not contain try/except blocks for domain exceptions
+- Instead, rely on global exception handlers to transform domain exceptions into HTTP responses
+- Only catch exceptions when specific handler-level logic is needed
+
+### Global Exception Handling
+- Register global exception handlers for common domain exceptions
+- Map domain exceptions to appropriate HTTP status codes and response formats
+- Ensure consistent error responses across the API
 
 ## Testing
 
