@@ -32,6 +32,13 @@ Every table should include these standard fields:
 - `created_at`: Creation timestamp, using `timestamptz not null default current_timestamp`
 - `updated_at`: Last update timestamp, using `timestamptz not null default current_timestamp`
 
+### ID and UUID Usage
+
+- Use `id` (internal identity) for internal database operations, joins, and queries
+- Use `uuid` for all client-facing operations and API endpoints
+- Never expose internal `id` values to clients for security reasons
+- Generate UUIDs using database functions (e.g., `nanoid()`) to ensure uniqueness
+
 ### Data Types
 
 - Use `text` for string data instead of `varchar` (PostgreSQL optimizes this internally)
