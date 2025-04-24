@@ -92,6 +92,32 @@ Each feature should be organized with these standard components:
 - Component props follow the pattern: `{Component}Props` (e.g., `ProjectsTableProps`)
 - Component type definitions follow the pattern: `{Component}Component` (e.g., `ProjectsTableComponent`)
 
+**Example:**
+```typescript
+// Good
+type Project = {
+  uuid: string;
+  url: string;
+  type: "WORDPRESS" | "SHOPIFY" | "CUSTOM";
+};
+
+interface ProjectCreatePayload {
+  url: string;
+  type: "WORDPRESS" | "SHOPIFY" | "CUSTOM";
+}
+
+interface ProjectsTableProps {
+  data: Project[];
+  onView?: (project: Project) => void;
+}
+
+// Bad
+interface props {  // lowercase, generic name
+  projectData: any[];  // using any, generic name
+  handleView: Function;  // using Function type
+}
+```
+
 ### Functions [IMPORTANT]
 
 - Use camelCase for function names
@@ -125,6 +151,30 @@ Each feature should be organized with these standard components:
 - Mutation hooks: `use{Action}{Entity}`
 - Implement proper error handling and loading states
 - Use `useSuspenseQuery` for queries that should suspend the component
+
+**Example:**
+```typescript
+// Query options function
+const projectListQueryOptions = (payload: ProjectListGetPayload) => {
+  return queryOptions({
+    queryKey: [PROJECTS_QUERY_KEY, payload],
+    queryFn: () => fetchProjectList(payload),
+  });
+};
+
+// Mutation hook
+const useCreateProject = () => {
+  return useMutation({
+    mutationKey: [PROJECTS_MUTATION_KEY],
+    mutationFn: (payload: ProjectCreatePayload) => createProject(payload),
+  });
+};
+
+// Usage in component
+const projectsQuery = useSuspenseQuery(
+  projectListQueryOptions(projectListPayload)
+);
+```
 
 ## Component Conventions [CRITICAL]
 
@@ -160,6 +210,45 @@ Each feature should be organized with these standard components:
 - Handle form submission and validation errors
 
 **Rationale**: TanStack Form with Zod validation provides type-safe form handling with robust validation, reducing runtime errors and improving developer experience through better TypeScript integration.
+
+**Example:**
+```typescript
+// Form component with generic type parameter
+const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
+  formId,
+  onSubmit,
+  defaultValues,
+}: ProjectsFormProps<T>) => {
+  const form = useAppForm({
+    defaultValues: {
+      url: defaultValues?.url ?? "",
+      type: defaultValues?.type ?? "WORDPRESS",
+    },
+    onSubmit: async ({ value }) => {
+      onSubmit?.(value as T);
+    },
+  });
+
+  return (
+    <form id={formId} onSubmit={form.handleSubmit}>
+      <form.Field
+        name="url"
+        validators={{
+          onChange: z.string().url("Invalid URL"),
+        }}
+      >
+        {(field) => (
+          <Input
+            value={field.state.value}
+            onChange={(e) => field.handleChange(e.target.value)}
+            invalid={field.state.meta.errors.length > 0}
+          />
+        )}
+      </form.Field>
+    </form>
+  );
+};
+```
 
 ### Detail Components [IMPORTANT]
 
@@ -204,6 +293,24 @@ Each feature should be organized with these standard components:
 - Follow a consistent pattern for success and error notifications
 - Include appropriate loading states during async operations
 
+**Example:**
+```typescript
+// Mutation with toast notifications
+const onCreate = (payload: ProjectCreatePayload) => {
+  let toastId = toast.loading("Creating project...");
+  createProject.mutate(payload, {
+    onSuccess: () => {
+      projectsQuery.refetch();
+      setIsCreateModalOpen(false);
+      toast.success("Project created successfully", { id: toastId });
+    },
+    onError: () => {
+      toast.error("Unable to create project", { id: toastId });
+    },
+  });
+};
+```
+
 ## Modal Pattern [IMPORTANT]
 
 - Use a reusable Modal component for all dialogs
@@ -244,6 +351,30 @@ For routes that require data loading:
 - Use TanStack Query's `prefetchQuery` for data that can be loaded in parallel
 - Use `ensureQueryData` for critical data that must be loaded before rendering
 - Structure API payloads consistently based on route parameters and search values
+
+**Example:**
+```typescript
+// In a route loader
+export const Route = createFileRoute("/_app/p/$puuid/")({
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    const payload = {
+      uuid: params.puuid,
+      limit: deps.limit,
+      offset: deps.offset,
+      sort_by: deps.sort_by,
+      sort_direction: deps.sort_direction,
+    };
+    
+    // Prefetch data in parallel
+    await Promise.all([
+      queryClient.prefetchQuery(projectQueryOptions({ uuid: params.puuid })),
+      queryClient.prefetchQuery(imagesQueryOptions(payload))
+    ]);
+  },
+  component: ProjectDetail,
+});
+```
 
 ### Route Parameters [IMPORTANT]
 
