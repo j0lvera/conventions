@@ -856,3 +856,82 @@ const ProjectsEmpty = ({ onCreate }: ProjectsEmptyProps) => {
 
 export { ProjectsEmpty };
 ```
+
+## Project Structure
+
+```
+/src
+  /components
+    /[feature]
+      [Feature].types.ts    # Type definitions
+      [Feature].api.ts      # API integration
+      [Feature].constants.ts # Constants
+      [Feature].page.tsx    # Page component
+      [Feature].form.tsx    # Form component
+      [Feature].table.tsx   # Table component
+      [Feature].detail.tsx  # Detail component
+      [Feature].empty.tsx   # Empty state component
+  /components
+    /ui                     # Shared UI components
+    /common                 # Shared common components
+  /api.ts                   # Global API setup
+  /constants.ts             # Global constants
+  /types.ts                 # Global type definitions
+  /utils.ts                 # Global utility functions
+```
+
+## Routing Conventions
+
+### TanStack Router Integration
+
+```typescript
+// Basic route without data dependencies
+import { createFileRoute } from "@tanstack/react-router";
+import { AppPage } from "@/components/pages/AppPage.tsx";
+
+export const Route = createFileRoute("/_app/")({
+  component: AppPage,
+});
+
+// Data-dependent route
+export const Route = createFileRoute("/_app/p/$puuid/")({
+  validateSearch: (search?: Record<string, unknown>) => {
+    return {
+      ...getDefaultSearchValues<Image>(search),
+      sort_by: "url" as keyof Image,
+    };
+  },
+  loaderDeps: ({ search }) => {
+    return search;
+  },
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    // Prefetch required data
+    await queryClient.prefetchQuery(dataQueryOptions(payload));
+  },
+  component: FeatureDetail,
+});
+```
+
+### Search Parameters
+
+```typescript
+const searchParams = {
+  ...getDefaultSearchValues<EntityType>(search),
+  sort_by: "name" as keyof EntityType,
+};
+```
+
+### Data Loading
+
+```typescript
+const payload: EntityListGetPayload = {
+  uuid: params.uuid,
+  limit: deps.limit,
+  offset: deps.offset,
+  sort_by: deps.sort_by,
+  sort_direction: deps.sort_direction,
+  filter: deps.filter,
+};
+
+await queryClient.prefetchQuery(entityQueryOptions(payload));
+```
