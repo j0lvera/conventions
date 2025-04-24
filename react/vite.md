@@ -193,3 +193,91 @@ Each feature should be organized with these standard components:
 - Use a reusable Modal component for all dialogs
 - Pass form IDs to connect forms with modals
 - Implement consistent props for modals
+
+## Routing Conventions
+
+### TanStack Router Integration
+
+- Use file-based routing with TanStack Router's `createFileRoute` function
+- Place route files in a dedicated routes directory structure that mirrors the URL structure
+- Export a `Route` constant from each route file
+
+### Route Configuration
+
+#### Basic Routes
+
+For simple routes without data dependencies:
+
+```typescript
+import { createFileRoute } from "@tanstack/react-router";
+import { AppPage } from "@/components/pages/AppPage.tsx";
+
+export const Route = createFileRoute("/_app/")({
+  component: AppPage,
+});
+```
+
+#### Data-Dependent Routes
+
+For routes that require data loading:
+
+- Use `loader` functions to prefetch data before rendering components
+- Use `validateSearch` to normalize and validate search parameters
+- Use `loaderDeps` to specify dependencies for the loader function
+
+```typescript
+export const Route = createFileRoute("/_app/p/$puuid/")({
+  validateSearch: (search?: Record<string, unknown>) => {
+    return {
+      ...getDefaultSearchValues<Image>(search),
+      sort_by: "url" as keyof Image,
+    };
+  },
+  loaderDeps: ({ search }) => {
+    return search;
+  },
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    // Prefetch required data
+    await queryClient.prefetchQuery(dataQueryOptions(payload));
+  },
+  component: FeatureDetail,
+});
+```
+
+### Search Parameters
+
+- Use the `getDefaultSearchValues` utility to normalize pagination parameters
+- Apply consistent defaults for pagination, sorting, and filtering
+- Type search parameters properly using generics
+
+```typescript
+const searchParams = {
+  ...getDefaultSearchValues<EntityType>(search),
+  sort_by: "name" as keyof EntityType,
+};
+```
+
+### Data Loading
+
+- Use TanStack Query's `prefetchQuery` for data that can be loaded in parallel
+- Use `ensureQueryData` for critical data that must be loaded before rendering
+- Structure API payloads consistently based on route parameters and search values
+
+```typescript
+const payload: EntityListGetPayload = {
+  uuid: params.uuid,
+  limit: deps.limit,
+  offset: deps.offset,
+  sort_by: deps.sort_by,
+  sort_direction: deps.sort_direction,
+  filter: deps.filter,
+};
+
+await queryClient.prefetchQuery(entityQueryOptions(payload));
+```
+
+### Route Parameters
+
+- Use descriptive names for route parameters (e.g., `$puuid` for project UUID)
+- Access route parameters via the `params` object in loaders and components
+- Use route parameters to construct API request payloads
