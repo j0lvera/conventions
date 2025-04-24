@@ -517,6 +517,10 @@ Page components are the top-level components that handle routing, data fetching,
 4. Handling mutations with proper loading, success, and error states
 5. Organizing callback functions by purpose
 
+Let's break down the implementation into logical sections:
+
+### 1. Component Setup and Imports
+
 ```typescript
 // projects/Projects.page.tsx
 import { useState } from "react";
@@ -548,29 +552,45 @@ import { getDefaultSearchValues } from "@/utils.ts";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs.tsx";
 
 const routeApi = getRouteApi("/_app/p/");
+```
 
+### 2. Component State and Routing
+
+```typescript
 const ProjectsPage = () => {
+  // Component state for modals and selected item
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  
+  // TanStack Router hooks for navigation and search params
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
 
-  // We need the default search parameters when we redirect to the project detail page
-  // because we need to pass the search parameters to the image list query
+  // Default search parameters for navigation
   const imageListGetPayload: Omit<ImageListGetPayload, "project_uuid"> = {
     ...getDefaultSearchValues(),
     sort_by: "url" as keyof Image,
   };
 
+  // Construct API payload from search parameters
   const projectListPayload: ProjectListGetPayload = {
     ...search,
   };
+```
 
+### 3. Data Fetching with TanStack Query
+
+```typescript
+  // Fetch projects list with TanStack Query
   const projectsQuery = useSuspenseQuery(
     projectListQueryOptions(projectListPayload)
   );
+```
 
+### 4. Create Project Mutation
+
+```typescript
   /**
    * Create a Project
    * POST /projects/
@@ -593,9 +613,11 @@ const ProjectsPage = () => {
       },
     });
   };
+```
 
-  /** End of Create a Project */
+### 5. Delete Project Mutation
 
+```typescript
   /**
    * Delete a Project
    * DELETE /projects/:uuid/
@@ -627,9 +649,11 @@ const ProjectsPage = () => {
       });
     }
   };
+```
 
-  /** End of Delete a Project */
+### 6. Table and Modal Callbacks
 
+```typescript
   /**
    * Table callbacks
    */
@@ -644,8 +668,6 @@ const ProjectsPage = () => {
     });
   };
 
-  /** End of Table callbacks */
-
   /**
    * Modal callbacks
    */
@@ -655,8 +677,7 @@ const ProjectsPage = () => {
     setSelectedProject(null);
   };
 
-  /** End of Modal callbacks */
-
+  // Breadcrumb configuration
   let breadcrumbPages = [
     {
       name: "Projects",
@@ -664,9 +685,14 @@ const ProjectsPage = () => {
       current: true,
     },
   ];
+```
 
+### 7. Component Rendering
+
+```typescript
   return (
     <>
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <Modal
           title={"Are you sure you want to delete this project?"}
@@ -680,6 +706,7 @@ const ProjectsPage = () => {
         />
       )}
 
+      {/* Create Project Modal */}
       {isCreateModalOpen && (
         <Modal
           formId="create-project-form"
@@ -703,6 +730,8 @@ const ProjectsPage = () => {
           />
         </Modal>
       )}
+
+      {/* Page Header with Breadcrumbs */}
       <div className="flex py-4">
         <Breadcrumbs pages={breadcrumbPages} />
       </div>
@@ -715,6 +744,8 @@ const ProjectsPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* Conditional Rendering Based on Data */}
       {projectsQuery.data.total === 0 ? (
         <ProjectsEmpty onCreate={() => setIsCreateModalOpen(true)} />
       ) : (
@@ -732,6 +763,15 @@ const ProjectsPage = () => {
 
 export { ProjectsPage };
 ```
+
+### Key Patterns to Note
+
+1. **State Organization**: Modal states and selected items are grouped together at the top
+2. **Data Flow**: The component follows a clear data flow from API to UI
+3. **Callback Grouping**: Related callbacks are grouped together with clear comments
+4. **Conditional Rendering**: The component conditionally renders different UI based on data state
+5. **Toast Integration**: All mutations include toast notifications for loading, success, and error states
+6. **Modal Pattern**: Modals are conditionally rendered with appropriate props
 
 ## Modal Component
 
