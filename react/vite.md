@@ -284,6 +284,11 @@ const ProjectsPage = () => {
   - Implement consistent header with title and action buttons
   - Use modals for destructive and creation actions
 
+- **Cross-Feature Component Usage**:
+  - Page components can incorporate components from other features
+  - For example, a Projects page might display a list of images using the Images.table.tsx component
+  - This promotes component reuse across the application
+
 ### Table Components
 
 - Table components act as container components with both presentation and logic
