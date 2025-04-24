@@ -942,6 +942,736 @@ const ProjectsEmpty = ({ onCreate }: ProjectsEmptyProps) => {
 export { ProjectsEmpty };
 ```
 
+## Before/After Examples: Refactoring Patterns
+
+These examples demonstrate how to refactor common code patterns to follow our conventions and best practices.
+
+### API Integration: From Direct Calls to TanStack Query
+
+**Before:**
+```typescript
+// Component with direct API calls
+const ProjectsList = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await axios.get('/api/projects');
+        setProjects(response.data.items);
+      } catch (err) {
+        setError('Failed to fetch projects');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <div>
+      <h1>Projects</h1>
+      <ul>
+        {projects.map(project => (
+          <li key={project.uuid}>{project.url}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+```
+
+**After:**
+```typescript
+// API layer
+// projects/Projects.api.ts
+const fetchProjectList = async (payload: ProjectListGetPayload) => {
+  const res: AxiosResponse<PaginatedRes<Project>> = await api.get(PROJECTS_ENDPOINT, {
+    params: payload,
+  });
+  return res.data;
+};
+
+const projectListQueryOptions = (payload: ProjectListGetPayload) => {
+  return queryOptions({
+    queryKey: [PROJECTS_QUERY_KEY, payload],
+    queryFn: () => fetchProjectList(payload),
+  });
+};
+
+// Component with TanStack Query
+// projects/Projects.page.tsx
+const ProjectsPage = () => {
+  const projectListPayload: ProjectListGetPayload = {
+    ...getDefaultSearchValues<Project>(),
+  };
+
+  const projectsQuery = useSuspenseQuery(
+    projectListQueryOptions(projectListPayload)
+  );
+
+  return (
+    <div>
+      <h1>Projects</h1>
+      <ProjectsTable 
+        data={projectsQuery.data.items} 
+        onView={handleViewProject}
+      />
+    </div>
+  );
+};
+```
+
+### Form Handling: From Uncontrolled to TanStack Form
+
+**Before:**
+```typescript
+// Form with manual state management
+const ProjectForm = () => {
+  const [url, setUrl] = useState('');
+  const [type, setType] = useState('WORDPRESS');
+  const [urlError, setUrlError] = useState('');
+  
+  const validateUrl = (value: string) => {
+    if (!value) {
+      setUrlError('URL is required');
+      return false;
+    }
+    if (!value.startsWith('http')) {
+      setUrlError('URL must start with http:// or https://');
+      return false;
+    }
+    setUrlError('');
+    return true;
+  };
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateUrl(url)) return;
+    
+    // Submit form
+    console.log({ url, type });
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label htmlFor="url">URL</label>
+        <input
+          id="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onBlur={() => validateUrl(url)}
+        />
+        {urlError && <div className="error">{urlError}</div>}
+      </div>
+      
+      <div>
+        <label htmlFor="type">Type</label>
+        <select
+          id="type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          <option value="WORDPRESS">WordPress</option>
+          <option value="SHOPIFY">Shopify</option>
+          <option value="CUSTOM">Custom</option>
+        </select>
+      </div>
+      
+      <button type="submit">Submit</button>
+    </form>
+  );
+};
+```
+
+**After:**
+```typescript
+// Form with TanStack Form and Zod validation
+const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
+  formId,
+  onSubmit,
+  defaultValues,
+}: ProjectsFormProps<T>) => {
+  const form = useAppForm({
+    defaultValues: {
+      url: defaultValues?.url ?? "",
+      type: defaultValues?.type ?? "WORDPRESS",
+    },
+    onSubmit: async ({ value }) => {
+      onSubmit?.(value as T);
+    },
+  });
+
+  return (
+    <form id={formId} onSubmit={form.handleSubmit}>
+      <Field>
+        <form.Field
+          name="url"
+          validators={{
+            onChange: z.string().url("Invalid URL"),
+            onBlur: z.string().url("Invalid URL"),
+          }}
+        >
+          {(field) => (
+            <>
+              <Label htmlFor={field.name}>URL</Label>
+              <Input
+                id={field.name}
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                invalid={field.state.meta.errors.length > 0}
+              />
+              {field.state.meta.errors.length > 0 && (
+                <ErrorMessage>
+                  {field.state.meta.errors[0].message}
+                </ErrorMessage>
+              )}
+            </>
+          )}
+        </form.Field>
+      </Field>
+      
+      <Field>
+        <form.Field name="type">
+          {(field) => (
+            <>
+              <Label htmlFor={field.name}>Type</Label>
+              <Select
+                id={field.name}
+                value={field.state.value}
+                onChange={(value) => field.handleChange(value)}
+              >
+                <option value="WORDPRESS">WordPress</option>
+                <option value="SHOPIFY">Shopify</option>
+                <option value="CUSTOM">Custom</option>
+              </Select>
+            </>
+          )}
+        </form.Field>
+      </Field>
+      
+      <form.Subscribe
+        selector={(state) => [state.canSubmit, state.isSubmitting]}
+        children={([canSubmit, isSubmitting]) => (
+          <Button type="submit" disabled={!canSubmit || isSubmitting}>
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </Button>
+        )}
+      />
+    </form>
+  );
+};
+```
+
+### Component Organization: From Monolithic to Feature-Based
+
+**Before:**
+```typescript
+// All in one file
+// ProjectsPage.tsx
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+
+interface Project {
+  uuid: string;
+  url: string;
+  type: string;
+}
+
+const ProjectsPage = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newProjectUrl, setNewProjectUrl] = useState('');
+  const [newProjectType, setNewProjectType] = useState('WORDPRESS');
+  
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+  
+  const fetchProjects = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get('/api/projects');
+      setProjects(response.data.items);
+    } catch (error) {
+      console.error('Failed to fetch projects', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const createProject = async () => {
+    try {
+      await axios.post('/api/projects', {
+        url: newProjectUrl,
+        type: newProjectType
+      });
+      setIsCreateModalOpen(false);
+      setNewProjectUrl('');
+      fetchProjects();
+    } catch (error) {
+      console.error('Failed to create project', error);
+    }
+  };
+  
+  const deleteProject = async (uuid: string) => {
+    try {
+      await axios.delete(`/api/projects/${uuid}`);
+      fetchProjects();
+    } catch (error) {
+      console.error('Failed to delete project', error);
+    }
+  };
+  
+  return (
+    <div>
+      <h1>Projects</h1>
+      <button onClick={() => setIsCreateModalOpen(true)}>New Project</button>
+      
+      {isLoading ? (
+        <p>Loading...</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Type</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {projects.map(project => (
+              <tr key={project.uuid}>
+                <td>{project.url}</td>
+                <td>{project.type}</td>
+                <td>
+                  <button onClick={() => deleteProject(project.uuid)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      
+      {isCreateModalOpen && (
+        <div className="modal">
+          <h2>Create Project</h2>
+          <div>
+            <label>URL</label>
+            <input 
+              value={newProjectUrl} 
+              onChange={e => setNewProjectUrl(e.target.value)} 
+            />
+          </div>
+          <div>
+            <label>Type</label>
+            <select 
+              value={newProjectType} 
+              onChange={e => setNewProjectType(e.target.value)}
+            >
+              <option value="WORDPRESS">WordPress</option>
+              <option value="SHOPIFY">Shopify</option>
+              <option value="CUSTOM">Custom</option>
+            </select>
+          </div>
+          <div>
+            <button onClick={createProject}>Create</button>
+            <button onClick={() => setIsCreateModalOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ProjectsPage;
+```
+
+**After:**
+Feature-based organization with separate files:
+
+1. **Types (Projects.types.ts)**:
+```typescript
+import type { ReactElement } from "react";
+import { PaginationReq } from "@/types.ts";
+
+type Project = {
+  uuid: string;
+  url: string;
+  type: "WORDPRESS" | "SHOPIFY" | "CUSTOM";
+};
+
+interface ProjectListGetPayload extends PaginationReq<Project> {}
+
+interface ProjectCreatePayload extends Omit<Project, "uuid"> {
+  url: string;
+}
+
+interface ProjectsTableProps {
+  data: Project[];
+  onDelete?: (project: Project) => void;
+}
+
+interface ProjectsFormProps<T extends ProjectCreatePayload> {
+  formId?: string;
+  onSubmit?: (data: T) => void;
+  defaultValues?: T;
+}
+
+export type {
+  Project,
+  ProjectCreatePayload,
+  ProjectListGetPayload,
+  ProjectsTableProps,
+  ProjectsFormProps,
+};
+```
+
+2. **API (Projects.api.ts)**:
+```typescript
+import { api } from "@/api.ts";
+import { queryOptions, useMutation } from "@tanstack/react-query";
+import {
+  Project,
+  ProjectCreatePayload,
+  ProjectListGetPayload,
+} from "./Projects.types.ts";
+import { PaginatedRes } from "@/types.ts";
+
+const PROJECTS_ENDPOINT = "/projects/";
+const PROJECTS_QUERY_KEY = "QUERY_PROJECTS";
+const PROJECTS_MUTATION_KEY = "MUTATE_PROJECTS";
+
+const fetchProjectList = async (payload: ProjectListGetPayload) => {
+  const res = await api.get(PROJECTS_ENDPOINT, { params: payload });
+  return res.data as PaginatedRes<Project>;
+};
+
+const projectListQueryOptions = (payload: ProjectListGetPayload) => {
+  return queryOptions({
+    queryKey: [PROJECTS_QUERY_KEY, payload],
+    queryFn: () => fetchProjectList(payload),
+  });
+};
+
+const createProject = async (payload: ProjectCreatePayload) => {
+  const res = await api.post(PROJECTS_ENDPOINT, payload);
+  return res.data as Project;
+};
+
+const useCreateProject = () => {
+  return useMutation({
+    mutationKey: [PROJECTS_MUTATION_KEY],
+    mutationFn: (payload: ProjectCreatePayload) => createProject(payload),
+  });
+};
+
+const deleteProject = async (uuid: string) => {
+  const res = await api.delete(`${PROJECTS_ENDPOINT}${uuid}/`);
+  return res.data;
+};
+
+const useDeleteProject = () => {
+  return useMutation({
+    mutationKey: [PROJECTS_MUTATION_KEY],
+    mutationFn: (uuid: string) => deleteProject(uuid),
+  });
+};
+
+export {
+  projectListQueryOptions,
+  useCreateProject,
+  useDeleteProject,
+};
+```
+
+3. **Table (Projects.table.tsx)**:
+```typescript
+import type { Project, ProjectsTableProps } from "./Projects.types.ts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const ProjectsTable = ({ data, onDelete }: ProjectsTableProps) => {
+  return (
+    <Table>
+      <TableHead>
+        <TableRow>
+          <TableHeader>URL</TableHeader>
+          <TableHeader>Type</TableHeader>
+          <TableHeader>Actions</TableHeader>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {data.map((project) => (
+          <TableRow key={project.uuid}>
+            <TableCell>{project.url}</TableCell>
+            <TableCell>{project.type}</TableCell>
+            <TableCell>
+              <button onClick={() => onDelete?.(project)}>Delete</button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+};
+
+export { ProjectsTable };
+```
+
+4. **Page (Projects.page.tsx)**:
+```typescript
+import { useState } from "react";
+import { toast } from "react-hot-toast";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Project, ProjectCreatePayload } from "./Projects.types.ts";
+import { projectListQueryOptions, useCreateProject, useDeleteProject } from "./Projects.api.ts";
+import { ProjectsTable } from "./Projects.table.tsx";
+import { ProjectsForm } from "./Projects.form.tsx";
+import { Modal } from "@/components/common/modal/Modal.tsx";
+import { getDefaultSearchValues } from "@/utils.ts";
+
+const ProjectsPage = () => {
+  // State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  
+  // Queries
+  const projectsQuery = useSuspenseQuery(
+    projectListQueryOptions(getDefaultSearchValues())
+  );
+  
+  // Mutations
+  const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
+  
+  // Callbacks
+  const handleCreate = (payload: ProjectCreatePayload) => {
+    let toastId = toast.loading("Creating project...");
+    createProject.mutate(payload, {
+      onSuccess: () => {
+        projectsQuery.refetch();
+        setIsCreateModalOpen(false);
+        toast.success("Project created successfully", { id: toastId });
+      },
+      onError: () => {
+        toast.error("Failed to create project", { id: toastId });
+      },
+    });
+  };
+  
+  const handleDelete = () => {
+    if (!selectedProject) return;
+    
+    let toastId = toast.loading("Deleting project...");
+    deleteProject.mutate(selectedProject.uuid, {
+      onSuccess: () => {
+        projectsQuery.refetch();
+        setIsDeleteModalOpen(false);
+        setSelectedProject(null);
+        toast.success("Project deleted successfully", { id: toastId });
+      },
+      onError: () => {
+        toast.error("Failed to delete project", { id: toastId });
+      },
+    });
+  };
+  
+  const onTableItemDelete = (project: Project) => {
+    setSelectedProject(project);
+    setIsDeleteModalOpen(true);
+  };
+  
+  return (
+    <div>
+      <h1>Projects</h1>
+      <button onClick={() => setIsCreateModalOpen(true)}>New Project</button>
+      
+      <ProjectsTable 
+        data={projectsQuery.data.items} 
+        onDelete={onTableItemDelete} 
+      />
+      
+      {isCreateModalOpen && (
+        <Modal
+          title="Create Project"
+          isOpen={isCreateModalOpen}
+          setIsOpen={setIsCreateModalOpen}
+          formId="create-project-form"
+        >
+          <ProjectsForm
+            formId="create-project-form"
+            onSubmit={handleCreate}
+          />
+        </Modal>
+      )}
+      
+      {isDeleteModalOpen && selectedProject && (
+        <Modal
+          title="Delete Project"
+          description="Are you sure you want to delete this project?"
+          isOpen={isDeleteModalOpen}
+          setIsOpen={setIsDeleteModalOpen}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
+  );
+};
+
+export { ProjectsPage };
+```
+
+### Error Handling: From Basic to Comprehensive
+
+**Before:**
+```typescript
+// Basic error handling
+const fetchProjects = async () => {
+  try {
+    const response = await axios.get('/api/projects');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch projects', error);
+    throw error;
+  }
+};
+
+const ProjectsPage = () => {
+  const [projects, setProjects] = useState([]);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    fetchProjects()
+      .then(data => setProjects(data.items))
+      .catch(err => setError('Failed to load projects'));
+  }, []);
+  
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <div>
+      <h1>Projects</h1>
+      <ul>
+        {projects.map(project => (
+          <li key={project.uuid}>{project.url}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+```
+
+**After:**
+```typescript
+// Comprehensive error handling
+// Error types
+interface ApiError {
+  message: string;
+  code: string;
+  status: number;
+}
+
+// API function with structured error handling
+const fetchProjects = async (payload: ProjectListGetPayload): Promise<PaginatedRes<Project>> => {
+  try {
+    const res = await api.get(PROJECTS_ENDPOINT, { params: payload });
+    return res.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      const apiError: ApiError = {
+        message: error.response.data?.message || "Failed to fetch projects",
+        code: error.response.data?.code || "UNKNOWN_ERROR",
+        status: error.response.status,
+      };
+      console.error("API Error:", apiError);
+      throw apiError;
+    }
+    
+    console.error("Unexpected error:", error);
+    throw {
+      message: "An unexpected error occurred",
+      code: "UNKNOWN_ERROR",
+      status: 500,
+    };
+  }
+};
+
+// Query with retry logic
+const projectListQueryOptions = (payload: ProjectListGetPayload) => {
+  return queryOptions({
+    queryKey: [PROJECTS_QUERY_KEY, payload],
+    queryFn: () => fetchProjects(payload),
+    retry: (failureCount, error: ApiError) => {
+      // Don't retry for client errors
+      if (error.status >= 400 && error.status < 500) {
+        return false;
+      }
+      // Retry server errors up to 3 times
+      return failureCount < 3;
+    },
+  });
+};
+
+// Component with error boundary
+const ProjectsPageContainer = () => {
+  return (
+    <ErrorBoundary
+      fallback={({ error, resetErrorBoundary }) => (
+        <ErrorFallback 
+          error={error as ApiError} 
+          resetErrorBoundary={resetErrorBoundary}
+        />
+      )}
+    >
+      <Suspense fallback={<LoadingSpinner />}>
+        <ProjectsPage />
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+
+// Error fallback component
+const ErrorFallback = ({ 
+  error, 
+  resetErrorBoundary 
+}: { 
+  error: ApiError; 
+  resetErrorBoundary: () => void;
+}) => {
+  // Log error to monitoring service
+  useEffect(() => {
+    // logErrorToService(error);
+  }, [error]);
+
+  return (
+    <div className="p-6 bg-red-50 rounded-lg">
+      <h3 className="text-lg font-medium text-red-800">
+        {error.status === 404 ? "Projects not found" : "Error loading projects"}
+      </h3>
+      <p className="mt-2 text-sm text-red-700">{error.message}</p>
+      <div className="mt-4">
+        <Button onClick={resetErrorBoundary} variant="secondary">
+          Try again
+        </Button>
+      </div>
+    </div>
+  );
+};
+```
+
 ## Error Handling Patterns: Robust Error Management Strategies
 
 Proper error handling is critical for creating robust applications. These examples demonstrate best practices for handling errors in different contexts.
