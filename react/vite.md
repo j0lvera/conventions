@@ -317,6 +317,265 @@ const onCreate = (payload: ProjectCreatePayload) => {
 - Pass form IDs to connect forms with modals
 - Implement consistent props for modals
 
+## Common Mistakes to Avoid [IMPORTANT]
+
+**Rationale**: Understanding what not to do is as important as knowing best practices. These anti-patterns can lead to maintenance issues, performance problems, and bugs.
+
+### Component Anti-Patterns [IMPORTANT]
+
+- **Overly Complex Components**: Don't create components that handle too many responsibilities. Split them into smaller, focused components.
+  ```typescript
+  // Bad: Component doing too much
+  const ProjectPage = () => {
+    // Data fetching, state management, form handling, and UI rendering all in one component
+    // ...100+ lines of code
+  };
+  
+  // Good: Split into smaller components with clear responsibilities
+  const ProjectPage = () => {
+    // Only handles page-level concerns
+    return (
+      <>
+        <ProjectHeader />
+        <ProjectForm />
+        <ProjectTable />
+      </>
+    );
+  };
+  ```
+
+- **Inconsistent Naming**: Don't mix naming conventions within the same codebase.
+  ```typescript
+  // Bad: Inconsistent naming
+  const get_projects = () => {}; // snake_case
+  const FetchUsers = () => {};   // PascalCase for non-component
+  ```
+
+- **Prop Drilling**: Avoid passing props through multiple levels of components.
+  ```typescript
+  // Bad: Excessive prop drilling
+  const App = () => {
+    const [user, setUser] = useState(null);
+    return <Main user={user} setUser={setUser} />;
+  };
+  
+  const Main = ({ user, setUser }) => {
+    return <Profile user={user} setUser={setUser} />;
+  };
+  
+  // Good: Use context for deeply shared state
+  const UserContext = createContext();
+  
+  const App = () => {
+    const [user, setUser] = useState(null);
+    return (
+      <UserContext.Provider value={{ user, setUser }}>
+        <Main />
+      </UserContext.Provider>
+    );
+  };
+  ```
+
+### TypeScript Anti-Patterns [CRITICAL]
+
+- **Using `any`**: Avoid using `any` type as it defeats the purpose of TypeScript.
+  ```typescript
+  // Bad
+  const handleData = (data: any) => {};
+  
+  // Good
+  interface User {
+    id: string;
+    name: string;
+  }
+  const handleData = (data: User) => {};
+  ```
+
+- **Type Assertions Without Validation**: Don't use type assertions (`as`) without runtime validation.
+  ```typescript
+  // Bad: Unsafe type assertion
+  const userData = JSON.parse(response) as User;
+  
+  // Good: Validate with Zod before assertion
+  const userSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+  });
+  const parsed = userSchema.parse(JSON.parse(response));
+  const userData: User = parsed;
+  ```
+
+### API and Data Fetching Anti-Patterns [IMPORTANT]
+
+- **Inline API Calls**: Don't make API calls directly in components.
+  ```typescript
+  // Bad: API call directly in component
+  const ProjectList = () => {
+    useEffect(() => {
+      axios.get('/api/projects').then(res => setProjects(res.data));
+    }, []);
+  };
+  
+  // Good: Use dedicated API functions and TanStack Query
+  const ProjectList = () => {
+    const projectsQuery = useSuspenseQuery(projectListQueryOptions(payload));
+  };
+  ```
+
+- **Missing Error Handling**: Always handle potential errors in API calls.
+  ```typescript
+  // Bad: No error handling
+  const fetchProjects = async () => {
+    const res = await api.get('/projects/');
+    return res.data;
+  };
+  
+  // Good: Proper error handling
+  const fetchProjects = async () => {
+    try {
+      const res = await api.get('/projects/');
+      return res.data;
+    } catch (error) {
+      console.error('Failed to fetch projects:', error);
+      throw new Error('Failed to fetch projects');
+    }
+  };
+  ```
+
+### Form Handling Anti-Patterns [CRITICAL]
+
+- **Uncontrolled Form Inputs**: Don't mix controlled and uncontrolled inputs.
+  ```typescript
+  // Bad: Mixing controlled and uncontrolled inputs
+  const Form = () => {
+    const [name, setName] = useState('');
+    return (
+      <form>
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+        <input defaultValue="" /> {/* Uncontrolled */}
+      </form>
+    );
+  };
+  
+  // Good: Consistent controlled inputs with TanStack Form
+  const Form = () => {
+    const form = useAppForm({
+      defaultValues: { name: '', email: '' },
+      onSubmit: ({ value }) => {},
+    });
+    
+    return (
+      <form onSubmit={form.handleSubmit}>
+        <form.Field name="name">
+          {(field) => (
+            <Input
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+            />
+          )}
+        </form.Field>
+      </form>
+    );
+  };
+  ```
+
+- **Missing Form Validation**: Always validate form inputs.
+  ```typescript
+  // Bad: No validation
+  const form = useAppForm({
+    defaultValues: { email: '' },
+    onSubmit: ({ value }) => {},
+  });
+  
+  // Good: With validation
+  const form = useAppForm({
+    defaultValues: { email: '' },
+    onSubmit: ({ value }) => {},
+  });
+  
+  <form.Field
+    name="email"
+    validators={{
+      onChange: z.string().email("Invalid email address"),
+    }}
+  >
+    {/* ... */}
+  </form.Field>
+  ```
+
+### Performance Anti-Patterns [IMPORTANT]
+
+- **Unnecessary Re-renders**: Avoid creating new functions or objects in render.
+  ```typescript
+  // Bad: Creating new function on every render
+  const Component = ({ data }) => {
+    return (
+      <Button onClick={() => handleClick(data)}>Click</Button>
+    );
+  };
+  
+  // Good: Memoized callback
+  const Component = ({ data }) => {
+    const handleButtonClick = useCallback(() => {
+      handleClick(data);
+    }, [data]);
+    
+    return (
+      <Button onClick={handleButtonClick}>Click</Button>
+    );
+  };
+  ```
+
+- **Large Component Trees**: Don't render large lists without virtualization.
+  ```typescript
+  // Bad: Rendering all items at once
+  const List = ({ items }) => {
+    return (
+      <div>
+        {items.map(item => <Item key={item.id} {...item} />)}
+      </div>
+    );
+  };
+  
+  // Good: Using virtualization for large lists
+  import { useVirtualizer } from '@tanstack/react-virtual';
+  
+  const List = ({ items }) => {
+    const virtualizer = useVirtualizer({
+      count: items.length,
+      getScrollElement: () => parentRef.current,
+      estimateSize: () => 50,
+    });
+    
+    return (
+      <div ref={parentRef}>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map(virtualRow => (
+            <div
+              key={items[virtualRow.index].id}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <Item {...items[virtualRow.index]} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  ```
+
 ## Routing Conventions [CRITICAL]
 
 ### TanStack Router Integration [CRITICAL]
