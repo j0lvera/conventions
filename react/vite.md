@@ -10,6 +10,8 @@ This document outlines our React development conventions when using Vite as the 
 - **Routing**: TanStack Router
 - **Data Fetching**: TanStack Query
 - **Form Handling**: TanStack Form
+- **Form Validation**: Zod
+- **Notifications**: react-hot-toast
 
 ## Project Structure
 
@@ -22,7 +24,14 @@ This document outlines our React development conventions when using Vite as the 
       [Feature].api.ts      # API integration
       [Feature].constants.ts # Constants
       [Feature].utils.ts    # Utility functions
+      [Feature].page.tsx    # Page component
+      [Feature].form.tsx    # Form component
+      [Feature].table.tsx   # Table component
+      [Feature].empty.tsx   # Empty state component
       /components           # Feature-specific components
+  /components
+    /ui                     # Shared UI components
+    /common                 # Shared common components
   /api.ts                   # Global API setup
   /constants.ts             # Global constants
   /types.ts                 # Global type definitions
@@ -36,6 +45,10 @@ This document outlines our React development conventions when using Vite as the 
 - **Component Files**: PascalCase (`Projects.tsx`)
 - **Utility Files**: camelCase (`api.ts`)
 - **Feature Files**: Prefixed with feature name in PascalCase (`Projects.types.ts`)
+- **Page Components**: Suffixed with `.page.tsx` (`Projects.page.tsx`)
+- **Form Components**: Suffixed with `.form.tsx` (`Projects.form.tsx`)
+- **Table Components**: Suffixed with `.table.tsx` (`Projects.table.tsx`)
+- **Empty State Components**: Suffixed with `.empty.tsx` (`Projects.empty.tsx`)
 
 ### Types/Interfaces
 
@@ -56,6 +69,7 @@ This document outlines our React development conventions when using Vite as the 
 ### Constants
 
 - Use UPPER_SNAKE_CASE for constants (e.g., `API_URL`, `PROJECTS_ENDPOINT`)
+- Query and mutation keys follow the pattern: `{ENTITY}_{ACTION}_KEY` (e.g., `PROJECTS_QUERY_KEY`, `PROJECTS_MUTATION_KEY`)
 
 ## API Conventions
 
@@ -132,6 +146,43 @@ const useCreateProject = () => {
 
 ## Component Conventions
 
+### Page Components
+
+- Page components handle routing, data fetching, and state management
+- Follow the pattern: `{Feature}Page` (e.g., `ProjectsPage`)
+- Use TanStack Router for navigation and search params
+- Implement proper loading and error states
+
+```typescript
+const ProjectsPage = () => {
+  // Routing
+  const routeApi = getRouteApi("/_app/p/");
+  const search = routeApi.useSearch();
+  const navigate = routeApi.useNavigate();
+  
+  // Data fetching
+  const projectsQuery = useSuspenseQuery(
+    projectListQueryOptions(projectListPayload)
+  );
+  
+  // Component state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  
+  // Event handlers
+  const onTableItemView = async (project: Project) => {
+    await navigate({
+      to: "/p/$puuid",
+      params: { puuid: project.uuid },
+      search: { /* search params */ },
+    });
+  };
+  
+  return (
+    // JSX
+  );
+};
+```
+
 ### Props Typing
 
 - Define explicit interfaces for component props
@@ -152,6 +203,8 @@ type ProjectsTableComponent = (
 
 ### Form Handling
 
+- Use TanStack Form for form state management
+- Use Zod for form validation
 - Use generic form props with type parameters for flexibility:
 
 ```typescript
@@ -166,11 +219,46 @@ interface ProjectsFormProps<
 }
 ```
 
+- Implement form validation with Zod:
+
+```typescript
+<form.Field
+  name="url"
+  validators={{
+    onChange: z.string().url("Invalid URL"),
+    onBlur: z.string().url("Invalid URL"),
+  }}
+>
+  {/* Field rendering */}
+</form.Field>
+```
+
 ### Callback Patterns
 
 - Use consistent callback naming:
   - `onSubmit` for form submissions
   - `onView`, `onEdit`, `onDelete` for table row actions
+  - `onCreate`, `onUpdate`, `onDelete` for mutation actions
+  - `onClose`, `onConfirm` for modal actions
+
+### Toast Notifications
+
+- Use react-hot-toast for notifications
+- Follow a consistent pattern for success and error notifications:
+
+```typescript
+let toastId = toast.loading("Creating project...");
+createProject.mutate(payload, {
+  onSuccess: () => {
+    projectsQuery.refetch();
+    setIsCreateModalOpen(false);
+    toast.success("Project created successfully", { id: toastId });
+  },
+  onError: () => {
+    toast.error("Unable to create project", { id: toastId });
+  },
+});
+```
 
 ## Utility Functions
 
@@ -193,8 +281,46 @@ const getDefaultSearchValues = <T>(search?: Partial<PaginationReq<T>>) => ({
 - Use TanStack Query for all server state management
 - Define query keys in feature-specific constants files
 - Implement proper error handling and loading states
+- Use `useSuspenseQuery` for queries that should suspend the component
 
 ### Local State
 
 - Use React's built-in state management (useState, useReducer) for simple component state
 - Consider context API for shared state within a feature
+- Use state for UI elements like modals:
+
+```typescript
+const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+```
+
+## Modal Pattern
+
+- Use a reusable Modal component for all dialogs
+- Pass form IDs to connect forms with modals
+- Implement consistent props for modals:
+
+```typescript
+<Modal
+  formId="create-project-form"
+  title={"Create a new project"}
+  description={"Please enter the URL of the project you want to create."}
+  isOpen={isCreateModalOpen}
+  setIsOpen={setIsCreateModalOpen}
+  onClose={() => setIsCreateModalOpen(false)}
+  isLoading={createProject.isPending}
+>
+  <ProjectsForm
+    hideActions
+    formId="create-project-form"
+    onSubmit={(values) => onCreate(values)}
+    isLoading={false}
+  />
+</Modal>
+```
+
+## Empty States
+
+- Create dedicated components for empty states
+- Follow the pattern: `{Feature}Empty` (e.g., `ProjectsEmpty`)
+- Provide clear actions for users to take
