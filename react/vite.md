@@ -55,6 +55,8 @@ Our React applications use the following core technologies:
 
 Organize code by features with a clear separation of concerns.
 
+**Rationale**: Feature-based organization improves maintainability by grouping related code together, making it easier to understand, modify, and test components in isolation.
+
 ## Feature Organization [IMPORTANT]
 
 Each feature should be organized with these standard components:
@@ -66,7 +68,11 @@ Each feature should be organized with these standard components:
 - **{Feature}.table.tsx**: Container component that displays resources in a table with pagination and CRUD actions
 - **{Feature}.detail.tsx**: Component to display detailed information about a single resource
 
+**Rationale**: This separation creates a predictable file structure that clearly defines responsibilities, making it easier for developers to locate specific functionality and maintain separation of concerns.
+
 ## Naming Conventions [IMPORTANT]
+
+**Rationale**: Consistent naming patterns make code more predictable, improve searchability, and communicate the purpose and relationships between components without requiring extensive documentation.
 
 ### Files [CRITICAL]
 
@@ -153,6 +159,8 @@ Each feature should be organized with these standard components:
 - Support both creation and update operations
 - Handle form submission and validation errors
 
+**Rationale**: TanStack Form with Zod validation provides type-safe form handling with robust validation, reducing runtime errors and improving developer experience through better TypeScript integration.
+
 ### Detail Components [IMPORTANT]
 
 - Display comprehensive information about a single resource
@@ -182,6 +190,8 @@ Each feature should be organized with these standard components:
 - Define query keys in feature-specific constants files
 - Implement proper error handling and loading states
 
+**Rationale**: TanStack Query handles complex server state challenges like caching, synchronization, and background updates, significantly reducing boilerplate code and providing a consistent pattern for data fetching.
+
 ### Local State [IMPORTANT]
 
 - Use React's built-in state management (useState, useReducer) for simple component state
@@ -207,6 +217,8 @@ Each feature should be organized with these standard components:
 - Use file-based routing with TanStack Router's `createFileRoute` function
 - Place route files in a dedicated routes directory structure that mirrors the URL structure
 - Export a `Route` constant from each route file
+
+**Rationale**: File-based routing creates a clear mapping between the URL structure and the codebase, making it easier to understand and maintain routing logic while enabling type-safe route handling.
 
 ### Route Configuration [IMPORTANT]
 
