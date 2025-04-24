@@ -1,0 +1,12 @@
+version: 3
+
+tasks:
+  ai:gemini:
+    desc: Run Gemini
+    cmds:
+      - aider --model openrouter/google/gemini-2.5-pro-preview-03-25
+
+  ai:
+    desc: Run Anthropic assistant
+    cmds:
+      - aider --model openrouter/anthropic/claude-3.7-sonnet
