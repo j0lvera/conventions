@@ -38,7 +38,8 @@ Every table should include these standard fields:
 - Use `timestamptz` for all timestamps to handle timezone information properly
 - Use `jsonb` for semi-structured data that requires querying capabilities
 - Use `bigint` for IDs and numeric values that may grow large
-- Use appropriate numeric types (`decimal`, `numeric`) for financial calculations
+- Use `bigint` for financial values, storing the smallest currency unit (e.g., cents instead of dollars)
+- For example, store $100.00 as 10000 cents and handle formatting in the application layer
 
 ## Constraints
 
