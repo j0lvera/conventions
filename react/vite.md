@@ -122,7 +122,7 @@ interface props {  // lowercase, generic name
 }
 ```
 
-### Functions [IMPORTANT]
+### Functions ⚠️
 
 - Use camelCase for function names
 - API functions follow patterns:
@@ -131,12 +131,12 @@ interface props {  // lowercase, generic name
   - `use{Action}{Entity}` for React Query hooks
 - Utility functions should be descriptive of their purpose (e.g., `getDefaultSearchValues`)
 
-### Constants [RECOMMENDED]
+### Constants 👍
 
 - Use UPPER_SNAKE_CASE for constants (e.g., `API_URL`, `PROJECTS_ENDPOINT`)
 - Query and mutation keys follow the pattern: `{ENTITY}_{ACTION}_KEY` (e.g., `PROJECTS_QUERY_KEY`, `PROJECTS_MUTATION_KEY`)
 
-## API Conventions [IMPORTANT]
+## API Conventions ⚠️
 
 ### Endpoint Structure 👍
 
