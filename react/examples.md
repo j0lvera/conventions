@@ -522,7 +522,7 @@ Let's break down the implementation into logical sections:
 ### 1. Component Setup and Imports
 
 ```typescript
-// projects/Projects.page.tsx
+// Pages/Projects.page.tsx
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -1996,17 +1996,18 @@ const App = () => {
 /src
   /components
     /[feature]
+      index.ts                # Optional barrel file for the feature
       [Feature].types.ts    # Type definitions
       [Feature].api.ts      # API integration
       [Feature].constants.ts # Constants
-      [Feature].page.tsx    # Page component
       [Feature].form.tsx    # Form component
       [Feature].table.tsx   # Table component
       [Feature].detail.tsx  # Detail component
       [Feature].empty.tsx   # Empty state component
-  /components
     /ui                     # Shared UI components
     /common                 # Shared common components
+  /Pages
+    [Feature].page.tsx    # Page components for different routes (e.g., Projects.page.tsx, Contacts.page.tsx)
   /api.ts                   # Global API setup
   /constants.ts             # Global constants
   /types.ts                 # Global type definitions
@@ -2024,17 +2025,19 @@ This example shows both basic routes and data-dependent routes with proper type 
 ```typescript
 // Basic route without data dependencies
 import { createFileRoute } from "@tanstack/react-router";
-import { AppPage } from "@/components/pages/AppPage.tsx";
+import { AppPage } from "@/Pages/AppPage.tsx"; // Page components are now in /Pages
 
 export const Route = createFileRoute("/_app/")({
   component: AppPage,
 });
 
 // Data-dependent route
+// Assuming FeatureDetail is a page component, it would be imported from @/Pages/FeatureDetail.tsx
+// import { FeatureDetail } from "@/Pages/FeatureDetail.tsx";
 export const Route = createFileRoute("/_app/p/$puuid/")({
   validateSearch: (search?: Record<string, unknown>) => {
     return {
-      ...getDefaultSearchValues<Image>(search),
+      ...getDefaultSearchValues<Image>(search), // Image type would be imported from its definition file
       sort_by: "url" as keyof Image,
     };
   },
@@ -2043,9 +2046,10 @@ export const Route = createFileRoute("/_app/p/$puuid/")({
   },
   loader: async ({ context: { queryClient }, params, deps }) => {
     // Prefetch required data
-    await queryClient.prefetchQuery(dataQueryOptions(payload));
+    // dataQueryOptions and payload are illustrative; specific query options would be imported
+    await queryClient.prefetchQuery(dataQueryOptions(payload)); 
   },
-  component: FeatureDetail,
+  component: FeatureDetail, // FeatureDetail component would be imported from @/Pages/FeatureDetail.tsx
 });
 ```
 

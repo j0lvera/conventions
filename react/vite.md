@@ -53,9 +53,11 @@ Our React applications use the following core technologies:
 
 ## Project Structure [CRITICAL]
 
-Organize code by features with a clear separation of concerns.
+Organize code by features with a clear separation of concerns. Feature-specific components (forms, tables, details, etc.) reside within a dedicated directory under `src/components/`. Page components, which are used for routing, are located in a top-level `src/Pages/` directory.
 
-**Rationale**: Feature-based organization improves maintainability by grouping related code together, making it easier to understand, modify, and test components in isolation.
+Refer to the "Project Structure: Feature-Based Organization" section in `react/examples.md` for a visual representation.
+
+**Rationale**: Feature-based organization improves maintainability by grouping related code. Separating page components into a dedicated `Pages` directory enhances clarity for routing and distinguishes them from reusable feature components.
 
 ## Feature Organization [IMPORTANT]
 
@@ -63,12 +65,14 @@ Each feature should be organized with these standard components:
 
 - **{Feature}.api.ts**: Functions to call APIs using TanStack Query
 - **{Feature}.types.ts**: Types for all components, including request payloads and API responses
-- **{Feature}.page.tsx**: Page component that renders at a specific route (e.g., "/projects/")
 - **{Feature}.form.tsx**: Form component for adding/editing resources via API
 - **{Feature}.table.tsx**: Container component that displays resources in a table with pagination and CRUD actions
 - **{Feature}.detail.tsx**: Component to display detailed information about a single resource
+- **index.ts**: Optional barrel file re-exporting key modules from the feature.
 
-**Rationale**: This separation creates a predictable file structure that clearly defines responsibilities, making it easier for developers to locate specific functionality and maintain separation of concerns.
+Page components (e.g., `{Feature}.page.tsx`) are located in a separate top-level `Pages` directory. See the project structure diagram in `react/examples.md`.
+
+**Rationale**: This separation creates a predictable file structure that clearly defines responsibilities, making it easier for developers to locate specific functionality and maintain separation of concerns. Page components are grouped separately for clarity in routing.
 
 ## Naming Conventions [IMPORTANT]
 
