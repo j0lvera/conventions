@@ -26,7 +26,13 @@ When writing React code, you MUST follow these principles.
 - **API Functions**: `fetch{Entity}`, `create{Entity}`, `update{Entity}`, `delete{Entity}`
 - **Query Hooks**: `use{Action}{Entity}` (e.g., `useCreateProject`)
 - **Component Props**: `{Component}Props` (e.g., `ProjectsTableProps`)
-- **API Payloads**: `{Entity}{Action}Payload` (e.g., `ProjectCreatePayload`)
+- **API Payloads & Responses**:
+    - List Request: `{Entity}ListGetPayload` (e.g., `ProjectListGetPayload`)
+    - List Response: `{Entity}ListGetResponse` (e.g., `ProjectListGetResponse`)
+    - Detail Request: `{Entity}DetailGetPayload` (e.g., `ProjectDetailGetPayload`)
+    - Detail Response: `{Entity}DetailGetResponse` (e.g., `ProjectDetailGetResponse`)
+    - Create Request: `{Entity}CreatePayload` (e.g., `ProjectCreatePayload`)
+    - Update Request: `{Entity}UpdatePayload` (e.g., `ProjectUpdatePayload`)
 - **Query Keys**: `{ENTITY}_QUERY_KEY` (e.g., `PROJECTS_QUERY_KEY`)
 - **Callbacks**: `onSubmit`, `onView`, `onEdit`, `onDelete`, `onCreate`, `onUpdate`
 
@@ -92,18 +98,33 @@ Page components (e.g., `{Feature}.page.tsx`) are located in a separate top-level
 ### Types/Interfaces ⚠️
 
 - Use PascalCase for type definitions
-- API payload types follow the pattern: `{Entity}{Action}Payload` (e.g., `ProjectCreatePayload`)
+- API payload and response types follow these patterns:
+    - List Request: `{Entity}ListGetPayload` (e.g., `ProjectListGetPayload`)
+    - List Response: `{Entity}ListGetResponse` (e.g., `ProjectListGetResponse`)
+    - Detail Request: `{Entity}DetailGetPayload` (e.g., `ProjectDetailGetPayload`)
+    - Detail Response: `{Entity}DetailGetResponse` (e.g., `ProjectDetailGetResponse`)
+    - Create Request: `{Entity}CreatePayload` (e.g., `ProjectCreatePayload`)
+    - Update Request: `{Entity}UpdatePayload` (e.g., `ProjectUpdatePayload`)
+    - (Note: For Create/Update operations, the response is often the entity itself, e.g., `Project` or `EntityDetailGetResponse`)
 - Component props follow the pattern: `{Component}Props` (e.g., `ProjectsTableProps`)
 - Component type definitions follow the pattern: `{Component}Component` (e.g., `ProjectsTableComponent`)
 
 **Example:**
 ```typescript
 // Good
-type Project = {
+type Project = { // This can also serve as ProjectDetailGetResponse
   uuid: string;
   url: string;
   type: "WORDPRESS" | "SHOPIFY" | "CUSTOM";
 };
+
+interface ProjectListGetPayload extends PaginationReq<Project> {} // Assuming PaginationReq is defined
+type ProjectListGetResponse = PaginatedRes<Project>; // Assuming PaginatedRes is defined
+
+interface ProjectDetailGetPayload {
+  uuid: string;
+}
+// type ProjectDetailGetResponse = Project; // Often the entity itself
 
 interface ProjectCreatePayload {
   url: string;

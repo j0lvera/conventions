@@ -97,12 +97,14 @@ type Project = {
 };
 
 // GET /projects/:uuid
-interface ProjectGetPayload {
+interface ProjectDetailGetPayload { // Renamed from ProjectGetPayload
   uuid: string;
 }
+type ProjectDetailGetResponse = Project; // Response for getting a single project
 
 // GET /projects/
 interface ProjectListGetPayload extends PaginationReq<Project> {}
+type ProjectListGetResponse = PaginatedRes<Project>; // Response for getting a list of projects
 
 // POST /projects/
 interface ProjectCreatePayload extends Omit<Project, "uuid"> {
@@ -140,8 +142,10 @@ export type {
   Project,
   ProjectCreatePayload,
   ProjectUpdatePayload,
-  ProjectGetPayload,
+  ProjectDetailGetPayload, // Renamed
+  ProjectDetailGetResponse, // Added
   ProjectListGetPayload,
+  ProjectListGetResponse, // Added
   ProjectsTableComponent,
   ProjectsTableProps,
   ProjectsFormProps,
@@ -180,10 +184,12 @@ import {
 import {
   Project,
   ProjectCreatePayload,
-  ProjectGetPayload,
+  ProjectDetailGetPayload, // Renamed
+  ProjectDetailGetResponse, // Added
   ProjectListGetPayload,
+  ProjectListGetResponse, // Added
 } from "@/features/projects/Projects.types.ts";
-import { PaginatedRes } from "@/types.ts";
+import { PaginatedRes } from "@/types.ts"; // PaginatedRes is used by ProjectListGetResponse
 import { api } from "@/api.ts";
 import { queryOptions, useMutation } from "@tanstack/react-query";
 
@@ -994,8 +1000,8 @@ const ProjectsList = () => {
 ```typescript
 // API layer
 // projects/Projects.api.ts
-const fetchProjectList = async (payload: ProjectListGetPayload) => {
-  const res: AxiosResponse<PaginatedRes<Project>> = await api.get(PROJECTS_ENDPOINT, {
+const fetchProjectList = async (payload: ProjectListGetPayload): Promise<ProjectListGetResponse> => {
+  const res: AxiosResponse<ProjectListGetResponse> = await api.get(PROJECTS_ENDPOINT, {
     params: payload,
   });
   return res.data;
@@ -1585,9 +1591,9 @@ interface ApiError {
 }
 
 // API function with structured error handling
-const fetchProjects = async (payload: ProjectListGetPayload): Promise<PaginatedRes<Project>> => {
+const fetchProjects = async (payload: ProjectListGetPayload): Promise<ProjectListGetResponse> => {
   try {
-    const res = await api.get(PROJECTS_ENDPOINT, { params: payload });
+    const res: AxiosResponse<ProjectListGetResponse> = await api.get(PROJECTS_ENDPOINT, { params: payload });
     return res.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response) {
@@ -1689,9 +1695,9 @@ interface ApiError {
 }
 
 // API function with error handling
-const fetchProject = async (payload: ProjectGetPayload): Promise<Project> => {
+const fetchProject = async (payload: ProjectDetailGetPayload): Promise<ProjectDetailGetResponse> => {
   try {
-    const res: AxiosResponse<Project> = await api.get(
+    const res: AxiosResponse<ProjectDetailGetResponse> = await api.get(
       PROJECTS_ENDPOINT + payload.uuid + "/"
     );
     return res.data;
@@ -1728,10 +1734,10 @@ This example demonstrates how to handle query errors with TanStack Query, includ
 
 ```typescript
 // Query with error handling
-const projectQueryOptions = (payload: ProjectGetPayload) => {
+const projectQueryOptions = (payload: ProjectDetailGetPayload) => {
   return queryOptions({
     queryKey: [PROJECTS_QUERY_KEY, payload],
-    queryFn: () => fetchProject(payload),
+    queryFn: () => fetchProject(payload), // fetchProject now returns ProjectDetailGetResponse
     retry: (failureCount, error: ApiError) => {
       // Don't retry for client errors (4xx)
       if (error.status >= 400 && error.status < 500) {
