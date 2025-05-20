@@ -176,13 +176,13 @@ import {
   PROJECTS_ENDPOINT,
   PROJECTS_MUTATION_KEY,
   PROJECTS_QUERY_KEY,
-} from "@/components/projects/Projects.constants.ts";
+} from "@/features/projects/Projects.constants.ts";
 import {
   Project,
   ProjectCreatePayload,
   ProjectGetPayload,
   ProjectListGetPayload,
-} from "@/components/projects/Projects.types.ts";
+} from "@/features/projects/Projects.types.ts";
 import { PaginatedRes } from "@/types.ts";
 import { api } from "@/api.ts";
 import { queryOptions, useMutation } from "@tanstack/react-query";
@@ -293,7 +293,7 @@ import type {
   ProjectCreatePayload,
   ProjectUpdatePayload,
   ProjectsFormProps,
-} from "@/components/projects/Projects.types.ts";
+} from "@/features/projects/Projects.types.ts";
 
 const { fieldContext, formContext } = createFormHookContexts();
 
@@ -431,7 +431,7 @@ import {
 import type {
   Project,
   ProjectsTableComponent,
-} from "@/components/projects/Projects.types.ts";
+} from "@/features/projects/Projects.types.ts";
 import { Text } from "@/components/ui/text.tsx";
 
 const ProjectsTable: ProjectsTableComponent = ({ data, onView, onDelete }) => {
@@ -532,22 +532,22 @@ import {
   Project,
   ProjectCreatePayload,
   ProjectListGetPayload,
-} from "@/components/projects/Projects.types.ts";
+} from "@/features/projects/Projects.types.ts";
 import {
   projectListQueryOptions,
   useDeleteProject,
   useCreateProject,
-} from "@/components/projects/Projects.api.ts";
+} from "@/features/projects/Projects.api.ts";
 import { Heading } from "@/components/ui/heading.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { ProjectsEmpty } from "@/components/projects/Projects.empty.tsx";
-import { ProjectsTable } from "@/components/projects/Projects.table.tsx";
+import { ProjectsEmpty } from "@/features/projects/Projects.empty.tsx";
+import { ProjectsTable } from "@/features/projects/Projects.table.tsx";
 import { Modal } from "@/components/common/modal/Modal.tsx";
-import { ProjectsForm } from "@/components/projects/Projects.form.tsx";
+import { ProjectsForm } from "@/features/projects/Projects.form.tsx";
 import type {
   ImageListGetPayload,
   Image,
-} from "@/components/images/Images.types.ts";
+} from "@/features/images/Images.types.ts"; // Assuming 'images' is a feature module
 import { getDefaultSearchValues } from "@/utils.ts";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs.tsx";
 
@@ -1994,8 +1994,8 @@ const App = () => {
 
 ```
 /src
-  /components
-    /[feature]
+  /features                 # Top-level directory for all features
+    /[feature]              # Each feature module resides here (e.g., /features/Projects/)
       index.ts                # Optional barrel file for the feature
       [Feature].types.ts    # Type definitions
       [Feature].api.ts      # API integration
@@ -2004,8 +2004,9 @@ const App = () => {
       [Feature].table.tsx   # Table component
       [Feature].detail.tsx  # Detail component
       [Feature].empty.tsx   # Empty state component
-    /ui                     # Shared UI components
-    /common                 # Shared common components
+  /components               # For shared, non-feature-specific UI and common components
+    /ui                     # Shared UI components (e.g., Button, Input)
+    /common                 # Shared common components (e.g., Modal, Layout)
   /Pages
     [Feature].page.tsx    # Page components for different routes (e.g., Projects.page.tsx, Contacts.page.tsx)
   /api.ts                   # Global API setup

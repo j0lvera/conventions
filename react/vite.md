@@ -53,11 +53,11 @@ Our React applications use the following core technologies:
 
 ## Project Structure 🚨
 
-Organize code by features with a clear separation of concerns. Feature-specific components (forms, tables, details, etc.) reside within a dedicated directory under `src/components/`. Page components, which are used for routing, are located in a top-level `src/Pages/` directory.
+Organize code by features with a clear separation of concerns. Feature-specific modules (containing components like forms, tables, details, API logic, types, etc.) reside within a dedicated directory under `src/features/`. Page components, which are used for routing, are located in a top-level `src/Pages/` directory. Shared UI and common components that are not feature-specific remain in `src/components/`.
 
 Refer to the "Project Structure: Feature-Based Organization" section in `react/examples.md` for a visual representation.
 
-**Rationale**: Feature-based organization improves maintainability by grouping related code. Separating page components into a dedicated `Pages` directory enhances clarity for routing and distinguishes them from reusable feature components.
+**Rationale**: Feature-based organization improves maintainability by grouping all aspects of a feature (UI, logic, types) together. Placing these feature modules in a dedicated `src/features/` directory provides a clear distinction from shared components and page components. Separating page components into `src/Pages/` enhances clarity for routing.
 
 ## Feature Organization ⚠️
 
