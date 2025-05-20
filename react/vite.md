@@ -13,7 +13,7 @@ When writing React code, you MUST follow these principles.
 
 ## Quick Reference
 
-### Critical Conventions
+### 🚨 Critical Conventions
 - **Project Structure**: Organize by features with clear separation of concerns
 - **File Naming**: Use PascalCase for components, camelCase for utilities
 - **Component Organization**: Each feature has dedicated .types.ts, .api.ts, .page.tsx, .form.tsx, .table.tsx files
@@ -34,11 +34,11 @@ When writing React code, you MUST follow these principles.
 
 Conventions in this document are marked with priority levels:
 
-- **[CRITICAL]**: Must be followed without exception
-- **[IMPORTANT]**: Should be followed in most cases
-- **[RECOMMENDED]**: Best practices that improve code quality
+- 🚨 **Critical**: Must be followed without exception.
+- ⚠️ **Important**: Should be followed in most cases.
+- 👍 **Recommended**: Best practices that improve code quality.
 
-## Tech Stack [CRITICAL]
+## Tech Stack 🚨
 
 Our React applications use the following core technologies:
 
@@ -51,7 +51,7 @@ Our React applications use the following core technologies:
 - **Form Validation**: Zod
 - **Notifications**: react-hot-toast
 
-## Project Structure [CRITICAL]
+## Project Structure 🚨
 
 Organize code by features with a clear separation of concerns. Feature-specific components (forms, tables, details, etc.) reside within a dedicated directory under `src/components/`. Page components, which are used for routing, are located in a top-level `src/Pages/` directory.
 
@@ -59,7 +59,7 @@ Refer to the "Project Structure: Feature-Based Organization" section in `react/e
 
 **Rationale**: Feature-based organization improves maintainability by grouping related code. Separating page components into a dedicated `Pages` directory enhances clarity for routing and distinguishes them from reusable feature components.
 
-## Feature Organization [IMPORTANT]
+## Feature Organization ⚠️
 
 Each feature should be organized with these standard components:
 
@@ -74,11 +74,11 @@ Page components (e.g., `{Feature}.page.tsx`) are located in a separate top-level
 
 **Rationale**: This separation creates a predictable file structure that clearly defines responsibilities, making it easier for developers to locate specific functionality and maintain separation of concerns. Page components are grouped separately for clarity in routing.
 
-## Naming Conventions [IMPORTANT]
+## Naming Conventions ⚠️
 
 **Rationale**: Consistent naming patterns make code more predictable, improve searchability, and communicate the purpose and relationships between components without requiring extensive documentation.
 
-### Files [CRITICAL]
+### Files 🚨
 
 - **Component Files**: PascalCase (`Projects.tsx`)
 - **Utility Files**: camelCase (`api.ts`)
@@ -89,7 +89,7 @@ Page components (e.g., `{Feature}.page.tsx`) are located in a separate top-level
 - **Detail Components**: Suffixed with `.detail.tsx` (`Projects.detail.tsx`)
 - **Empty State Components**: Suffixed with `.empty.tsx` (`Projects.empty.tsx`)
 
-### Types/Interfaces [IMPORTANT]
+### Types/Interfaces ⚠️
 
 - Use PascalCase for type definitions
 - API payload types follow the pattern: `{Entity}{Action}Payload` (e.g., `ProjectCreatePayload`)
@@ -138,18 +138,18 @@ interface props {  // lowercase, generic name
 
 ## API Conventions [IMPORTANT]
 
-### Endpoint Structure [RECOMMENDED]
+### Endpoint Structure 👍
 
 - Collection endpoints: `/[resource]/` (e.g., `/projects/`)
 - Resource endpoints: `/[resource]/:uuid/` (e.g., `/projects/:uuid/`)
 
-### Request/Response Types [CRITICAL]
+### Request/Response Types 🚨
 
 - Use consistent typing for API responses using Axios
 - Implement reusable pagination types for list endpoints
 - Follow consistent naming patterns for request and response types
 
-### TanStack Query Integration [IMPORTANT]
+### TanStack Query Integration ⚠️
 
 - Query options functions: `{entity}{Action}QueryOptions`
 - Mutation hooks: `use{Action}{Entity}`
@@ -180,9 +180,9 @@ const projectsQuery = useSuspenseQuery(
 );
 ```
 
-## Component Conventions [CRITICAL]
+## Component Conventions 🚨
 
-### Page Components [IMPORTANT]
+### Page Components ⚠️
 
 - Handle routing, data fetching, and state management for a specific route
 - Can incorporate components from other features when appropriate
@@ -195,7 +195,7 @@ const projectsQuery = useSuspenseQuery(
   5. Callback functions (grouped by purpose)
   6. JSX rendering
 
-### Table Components [IMPORTANT]
+### Table Components ⚠️
 
 - Act as container components with both presentation and logic
 - Include pagination controls for navigating large datasets
@@ -205,7 +205,7 @@ const projectsQuery = useSuspenseQuery(
 - Format data appropriately for display
 - Include proper accessibility attributes
 
-### Form Components [CRITICAL]
+### Form Components 🚨
 
 - Use TanStack Form for form state management
 - Use Zod for form validation
@@ -254,20 +254,20 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
 };
 ```
 
-### Detail Components [IMPORTANT]
+### Detail Components ⚠️
 
 - Display comprehensive information about a single resource
 - Typically rendered at resource-specific routes (e.g., "/projects/:uuid")
 - May include related data from other entities
 - Provide actions relevant to the specific resource (edit, delete, etc.)
 
-### Empty State Components [RECOMMENDED]
+### Empty State Components 👍
 
 - Create dedicated components for empty states
 - Provide clear actions for users to take
 - Use consistent styling and messaging
 
-## Callback Patterns [IMPORTANT]
+## Callback Patterns ⚠️
 
 - Use consistent callback naming:
   - `onSubmit` for form submissions
@@ -275,9 +275,9 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
   - `onCreate`, `onUpdate`, `onDelete` for mutation actions
   - `onClose`, `onConfirm` for modal actions
 
-## State Management [CRITICAL]
+## State Management 🚨
 
-### Server State [CRITICAL]
+### Server State 🚨
 
 - Use TanStack Query for all server state management
 - Define query keys in feature-specific constants files
@@ -285,13 +285,13 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
 
 **Rationale**: TanStack Query handles complex server state challenges like caching, synchronization, and background updates, significantly reducing boilerplate code and providing a consistent pattern for data fetching.
 
-### Local State [IMPORTANT]
+### Local State ⚠️
 
 - Use React's built-in state management (useState, useReducer) for simple component state
 - Consider context API for shared state within a feature
 - Use state for UI elements like modals
 
-## Toast Notifications [RECOMMENDED]
+## Toast Notifications 👍
 
 - Use react-hot-toast for notifications
 - Follow a consistent pattern for success and error notifications
@@ -315,17 +315,17 @@ const onCreate = (payload: ProjectCreatePayload) => {
 };
 ```
 
-## Modal Pattern [IMPORTANT]
+## Modal Pattern ⚠️
 
 - Use a reusable Modal component for all dialogs
 - Pass form IDs to connect forms with modals
 - Implement consistent props for modals
 
-## Common Mistakes to Avoid [IMPORTANT]
+## Common Mistakes to Avoid ⚠️
 
 **Rationale**: Understanding what not to do is as important as knowing best practices. These anti-patterns can lead to maintenance issues, performance problems, and bugs.
 
-### Component Anti-Patterns [IMPORTANT]
+### Component Anti-Patterns ⚠️
 
 - **Overly Complex Components**: Don't create components that handle too many responsibilities. Split them into smaller, focused components.
   ```typescript
@@ -380,7 +380,7 @@ const onCreate = (payload: ProjectCreatePayload) => {
   };
   ```
 
-### TypeScript Anti-Patterns [CRITICAL]
+### TypeScript Anti-Patterns 🚨
 
 - **Using `any`**: Avoid using `any` type as it defeats the purpose of TypeScript.
   ```typescript
@@ -409,7 +409,7 @@ const onCreate = (payload: ProjectCreatePayload) => {
   const userData: User = parsed;
   ```
 
-### API and Data Fetching Anti-Patterns [IMPORTANT]
+### API and Data Fetching Anti-Patterns ⚠️
 
 - **Inline API Calls**: Don't make API calls directly in components.
   ```typescript
@@ -446,7 +446,7 @@ const onCreate = (payload: ProjectCreatePayload) => {
   };
   ```
 
-### Form Handling Anti-Patterns [CRITICAL]
+### Form Handling Anti-Patterns 🚨
 
 - **Uncontrolled Form Inputs**: Don't mix controlled and uncontrolled inputs.
   ```typescript
@@ -507,7 +507,7 @@ const onCreate = (payload: ProjectCreatePayload) => {
   </form.Field>
   ```
 
-### Performance Anti-Patterns [IMPORTANT]
+### Performance Anti-Patterns ⚠️
 
 - **Unnecessary Re-renders**: Avoid creating new functions or objects in render.
   ```typescript
@@ -580,9 +580,9 @@ const onCreate = (payload: ProjectCreatePayload) => {
   };
   ```
 
-## Routing Conventions [CRITICAL]
+## Routing Conventions 🚨
 
-### TanStack Router Integration [CRITICAL]
+### TanStack Router Integration 🚨
 
 - Use file-based routing with TanStack Router's `createFileRoute` function
 - Place route files in a dedicated routes directory structure that mirrors the URL structure
@@ -590,26 +590,26 @@ const onCreate = (payload: ProjectCreatePayload) => {
 
 **Rationale**: File-based routing creates a clear mapping between the URL structure and the codebase, making it easier to understand and maintain routing logic while enabling type-safe route handling.
 
-### Route Configuration [IMPORTANT]
+### Route Configuration ⚠️
 
-#### Basic Routes [RECOMMENDED]
+#### Basic Routes 👍
 
 For simple routes without data dependencies.
 
-#### Data-Dependent Routes [CRITICAL]
+#### Data-Dependent Routes 🚨
 
 For routes that require data loading:
 - Use `loader` functions to prefetch data before rendering components
 - Use `validateSearch` to normalize and validate search parameters
 - Use `loaderDeps` to specify dependencies for the loader function
 
-### Search Parameters [IMPORTANT]
+### Search Parameters ⚠️
 
 - Use the `getDefaultSearchValues` utility to normalize pagination parameters
 - Apply consistent defaults for pagination, sorting, and filtering
 - Type search parameters properly using generics
 
-### Data Loading [CRITICAL]
+### Data Loading 🚨
 
 - Use TanStack Query's `prefetchQuery` for data that can be loaded in parallel
 - Use `ensureQueryData` for critical data that must be loaded before rendering
@@ -639,7 +639,7 @@ export const Route = createFileRoute("/_app/p/$puuid/")({
 });
 ```
 
-### Route Parameters [IMPORTANT]
+### Route Parameters ⚠️
 
 - Use descriptive names for route parameters (e.g., `$puuid` for project UUID)
 - Access route parameters via the `params` object in loaders and components
