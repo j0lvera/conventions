@@ -530,7 +530,6 @@ Let's break down the implementation into logical sections:
 ```typescript
 // Pages/Projects.page.tsx
 import { useState } from "react";
-import { toast } from "react-hot-toast";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { PlusIcon } from "@heroicons/react/20/solid";
@@ -607,15 +606,15 @@ const ProjectsPage = () => {
 
   // Form callback
   const onCreate = (payload: ProjectCreatePayload) => {
-    let toastId = toast.loading("Creating project...");
+    // Consider adding alternative user feedback if toast is removed (e.g., inline messages, console logs)
     createProject.mutate(payload, {
       onSuccess: () => {
         projectsQuery.refetch();
         setIsCreateModalOpen(false);
-        toast.success("Project created successfully", { id: toastId });
+        // Example: console.log("Project created successfully");
       },
       onError: () => {
-        toast.error("Unable to create project", { id: toastId });
+        // Example: console.error("Unable to create project");
       },
     });
   };
@@ -641,16 +640,16 @@ const ProjectsPage = () => {
   // Form callback
   const onDelete = () => {
     if (selectedProject) {
-      let toastId = toast.loading("Deleting project...");
+      // Consider adding alternative user feedback if toast is removed
       deleteProject.mutate(selectedProject.uuid, {
         onSuccess: () => {
           projectsQuery.refetch();
           setIsDeleteModalOpen(false);
           setSelectedProject(null);
-          toast.success("Project deleted successfully", { id: toastId });
+          // Example: console.log("Project deleted successfully");
         },
         onError: () => {
-          toast.error("Unable to delete project", { id: toastId });
+          // Example: console.error("Unable to delete project");
         },
       });
     }
@@ -776,8 +775,8 @@ export { ProjectsPage };
 2. **Data Flow**: The component follows a clear data flow from API to UI
 3. **Callback Grouping**: Related callbacks are grouped together with clear comments
 4. **Conditional Rendering**: The component conditionally renders different UI based on data state
-5. **Toast Integration**: All mutations include toast notifications for loading, success, and error states
-6. **Modal Pattern**: Modals are conditionally rendered with appropriate props
+5. **Modal Pattern**: Modals are conditionally rendered with appropriate props
+6. **User Feedback**: Ensure mutations provide user feedback (e.g., inline messages, console logs) for loading, success, and error states.
 
 ## Modal Component: Reusable Dialog with Form Integration
 
@@ -1465,15 +1464,15 @@ const ProjectsPage = () => {
   
   // Callbacks
   const handleCreate = (payload: ProjectCreatePayload) => {
-    let toastId = toast.loading("Creating project...");
+    // Consider adding alternative user feedback
     createProject.mutate(payload, {
       onSuccess: () => {
         projectsQuery.refetch();
         setIsCreateModalOpen(false);
-        toast.success("Project created successfully", { id: toastId });
+        // Example: console.log("Project created successfully");
       },
       onError: () => {
-        toast.error("Failed to create project", { id: toastId });
+        // Example: console.error("Failed to create project");
       },
     });
   };
@@ -1481,16 +1480,16 @@ const ProjectsPage = () => {
   const handleDelete = () => {
     if (!selectedProject) return;
     
-    let toastId = toast.loading("Deleting project...");
+    // Consider adding alternative user feedback
     deleteProject.mutate(selectedProject.uuid, {
       onSuccess: () => {
         projectsQuery.refetch();
         setIsDeleteModalOpen(false);
         setSelectedProject(null);
-        toast.success("Project deleted successfully", { id: toastId });
+        // Example: console.log("Project deleted successfully");
       },
       onError: () => {
-        toast.error("Failed to delete project", { id: toastId });
+        // Example: console.error("Failed to delete project");
       },
     });
   };
@@ -1898,8 +1897,8 @@ const ProjectsPage = () => {
       // Clear previous errors
       setDeleteError(null);
       
-      // Show loading toast
-      let toastId = toast.loading("Deleting project...");
+      // Consider alternative loading indication if toast is removed
+      // Example: setIsLoading(true);
       
       deleteProject.mutate(selectedProject.uuid, {
         onSuccess: () => {
@@ -1907,21 +1906,23 @@ const ProjectsPage = () => {
           projectsQuery.refetch();
           setIsDeleteModalOpen(false);
           setSelectedProject(null);
-          toast.success("Project deleted successfully", { id: toastId });
+          // Example: console.log("Project deleted successfully");
+          // Example: setIsLoading(false);
         },
         onError: (error) => {
           // Handle specific error cases
           if ((error as ApiError).status === 403) {
             setDeleteError("You don't have permission to delete this project.");
-            toast.error("Permission denied", { id: toastId });
+            // Example: console.error("Permission denied");
           } else if ((error as ApiError).status === 409) {
             setDeleteError("This project is currently in use and cannot be deleted.");
-            toast.error("Cannot delete project", { id: toastId });
+            // Example: console.error("Cannot delete project");
           } else {
             // Generic error handling
             setDeleteError((error as ApiError).message || "Failed to delete project");
-            toast.error("Unable to delete project", { id: toastId });
+            // Example: console.error("Unable to delete project");
           }
+          // Example: setIsLoading(false);
         },
       });
     }

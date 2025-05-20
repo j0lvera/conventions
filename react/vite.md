@@ -55,7 +55,6 @@ Our React applications use the following core technologies:
 - **Data Fetching**: TanStack Query
 - **Form Handling**: TanStack Form
 - **Form Validation**: Zod
-- **Notifications**: react-hot-toast
 
 ## Project Structure 🚨
 
@@ -311,30 +310,6 @@ const ProjectsForm = <T extends ProjectCreatePayload | ProjectUpdatePayload>({
 - Use React's built-in state management (useState, useReducer) for simple component state
 - Consider context API for shared state within a feature
 - Use state for UI elements like modals
-
-## Toast Notifications 👍
-
-- Use react-hot-toast for notifications
-- Follow a consistent pattern for success and error notifications
-- Include appropriate loading states during async operations
-
-**Example:**
-```typescript
-// Mutation with toast notifications
-const onCreate = (payload: ProjectCreatePayload) => {
-  let toastId = toast.loading("Creating project...");
-  createProject.mutate(payload, {
-    onSuccess: () => {
-      projectsQuery.refetch();
-      setIsCreateModalOpen(false);
-      toast.success("Project created successfully", { id: toastId });
-    },
-    onError: () => {
-      toast.error("Unable to create project", { id: toastId });
-    },
-  });
-};
-```
 
 ## Modal Pattern ⚠️
 
