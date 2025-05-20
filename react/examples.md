@@ -1438,7 +1438,6 @@ export { ProjectsTable };
 4. **Page (Projects.page.tsx)**:
 ```typescript
 import { useState } from "react";
-import { toast } from "react-hot-toast";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Project, ProjectCreatePayload } from "./Projects.types.ts";
 import { projectListQueryOptions, useCreateProject, useDeleteProject } from "./Projects.api.ts";
