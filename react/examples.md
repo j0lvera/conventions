@@ -215,14 +215,14 @@ const useCreateProject = () => {
  * GET /projects/:uuid/
  */
 
-type GetRes = AxiosResponse<Project>;
+type GetRes = AxiosResponse<ProjectDetailGetResponse>; // Updated response type
 
-const fetchProject = async (payload: ProjectGetPayload) => {
+const fetchProject = async (payload: ProjectDetailGetPayload): Promise<ProjectDetailGetResponse> => { // Updated payload and return type
   const res: GetRes = await api.get(PROJECTS_ENDPOINT + payload.uuid + "/");
   return res.data;
 };
 
-const projectGetQueryOptions = (payload: ProjectGetPayload) => {
+const projectGetQueryOptions = (payload: ProjectDetailGetPayload) => { // Updated payload type
   return queryOptions({
     queryKey: [PROJECTS_QUERY_KEY, payload],
     queryFn: () => fetchProject(payload),
@@ -234,16 +234,16 @@ const projectGetQueryOptions = (payload: ProjectGetPayload) => {
  * GET /projects/
  */
 
-type ListRes = AxiosResponse<PaginatedRes<Project>>;
+type ListRes = AxiosResponse<ProjectListGetResponse>; // Updated response type
 
-const fetchProjectList = async (payload: ProjectListGetPayload) => {
+const fetchProjectList = async (payload: ProjectListGetPayload): Promise<ProjectListGetResponse> => { // Updated return type
   const res: ListRes = await api.get(PROJECTS_ENDPOINT, {
     params: payload,
   });
   return res.data;
 };
 
-const projectListQueryOptions = (payload: ProjectListGetPayload) => {
+const projectListQueryOptions = (payload: ProjectListGetPayload) => { // queryFn will return ProjectListGetResponse
   return queryOptions({
     queryKey: [PROJECTS_QUERY_KEY, payload],
     queryFn: () => fetchProjectList(payload),
