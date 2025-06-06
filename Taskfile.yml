@@ -12,4 +12,4 @@ tasks:
   ai:
     desc: Run Anthropic assistant
     cmds:
-      - aider --model openrouter/anthropic/claude-3.7-sonnet
+      - aider --model openrouter/anthropic/claude-sonnet-4
