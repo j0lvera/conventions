@@ -34,7 +34,8 @@ Each package should contain these standard components:
 - store.py - Data access layer (Repository pattern)
 - service.py - Business logic layer
 - types.py - Pydantic models for validation and type enforcement
-- errors.py - Custom exceptions
+- errors.py - Custom exceptions (inheriting from HTTPException)
+- routes.py - FastAPI router definitions and endpoint handlers
 
 ## Code Style
 
@@ -92,6 +93,27 @@ The corresponding service layer methods should follow the same naming pattern.
 
 ## Error Handling
 
+### Custom Exceptions
+- Create domain-specific exceptions that inherit from `HTTPException`
+- Include appropriate HTTP status codes and descriptive error messages
+- Example:
+  ```python
+  from fastapi import HTTPException, status
+  
+  class ResourceError(HTTPException):
+      """Base class for resource related errors."""
+      
+      def __init__(self, detail: str, status_code: int = status.HTTP_400_BAD_REQUEST):
+          super().__init__(status_code=status_code, detail=detail)
+  
+  class ResourceNotFound(ResourceError):
+      """Raised when a resource is not found."""
+      
+      def __init__(self, resource_uuid: str):
+          detail = f"Resource with UUID {resource_uuid} not found"
+          super().__init__(detail=detail, status_code=status.HTTP_404_NOT_FOUND)
+  ```
+
 ### Store Layer
 - Store methods should let database/ORM exceptions propagate
 - No exception handling or transformation should happen at this layer
@@ -107,18 +129,49 @@ The corresponding service layer methods should follow the same naming pattern.
       result = await self.store.get_one(id)
       return result
   except NoResultFound:
-      raise ResourceNotFoundError(resource_type="User", identifier=id)
+      raise ResourceNotFound(resource_uuid=id)
   ```
 
 ### Handler Layer
-- Handlers should generally not contain try/except blocks for domain exceptions
-- Instead, rely on global exception handlers to transform domain exceptions into HTTP responses
-- Only catch exceptions when specific handler-level logic is needed
+- Handlers should include try/except blocks for proper error handling and logging
+- Catch specific domain exceptions and let them propagate (they already have proper HTTP status codes)
+- Catch generic exceptions and convert to HTTP 500 errors with logging
+- Example:
+  ```python
+  try:
+      return await service.get(payload)
+  except ValueError as e:
+      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+  except Exception as e:
+      log.exception(e)
+      raise HTTPException(
+          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+          detail="Unexpected error"
+      ) from e
+  ```
 
-### Global Exception Handling
-- Register global exception handlers for common domain exceptions
-- Map domain exceptions to appropriate HTTP status codes and response formats
-- Ensure consistent error responses across the API
+## Router Conventions
+
+### Router Definition
+- Create routers with descriptive names and assign to a shorter alias for convenience:
+  ```python
+  feature_router = APIRouter(prefix="/feature", tags=["feature"], redirect_slashes=False)
+  router = feature_router  # Short alias for use within the module
+  ```
+
+### Dependency Injection
+- Create service dependencies using FastAPI's dependency injection:
+  ```python
+  async def get_feature_service(db: AsyncSession = Depends(get_db)):
+      store = FeatureStore(db)
+      return FeatureService(store)
+  ```
+
+### Route Handlers
+- Use descriptive function names that clearly indicate the operation
+- Include proper status codes in route decorators
+- Use Query parameters with validation for filtering, pagination, and sorting
+- Include comprehensive docstrings for API documentation
 
 ## Testing
 
