@@ -1,4 +1,17 @@
-Use these examples as reference.
+# FastAPI Examples
+
+Use these examples as reference for implementing the conventions described in fastapi.md.
+
+## Key Patterns Demonstrated
+
+- **Payload-based architecture**: All methods use payload objects for type safety
+- **Generic types**: Reusable pagination and response structures
+- **Error hierarchy**: Comprehensive error handling with base AppError class
+- **Global exception handling**: Centralized error handling in handlers
+- **Method naming**: Consistent `get_one`, `get_list`, `get_plist` patterns
+- **Store/Service/Handler separation**: Clear separation of concerns
+
+## Examples
 
 ```py
 # utils.py (global utils)

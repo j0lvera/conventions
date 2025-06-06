@@ -49,32 +49,35 @@ Each package should contain these standard components:
 
 When implementing data retrieval methods, follow these naming patterns consistently:
 
-- `get`: Retrieve a single resource by its identifier (usually UUID or ID)
-- `get_by_uuid`: Retrieve a single resource by UUID (when UUID is the primary lookup)
-- `list`: Retrieve a paginated list of resources with support for:
+- `get_one`: Retrieve a single resource by its identifier (usually UUID or ID)
+- `get_list`: Retrieve all resources (without pagination) that match certain criteria
+- `get_plist`: Retrieve a paginated list of resources with support for:
   - Pagination (limit/offset)
   - Sorting (sort_by/sort_direction)
   - Filtering (filter parameters)
-- `create`: Create a single resource
+- `create_one`: Create a single resource
 - `create_batch`: Create multiple resources atomically
+- `delete_one`: Delete a single resource
+- `delete_batch`: Delete multiple resources
 - `update_*`: Update specific fields of a resource
 
 These method names should be used consistently across all layers (store, service, handler) to maintain a clear understanding of the method's purpose and behavior.
 
-### Store Layer Examples:
+### Payload-Based Architecture
+All methods should use payload objects instead of individual parameters for better type safety and consistency:
 
 ```python
 # Store layer
-async def get_by_uuid(self, uuid: str, user_id: int) -> Resource:
-    # Retrieve a single resource by UUID
+async def get_one(self, payload: ResourceGetPayload) -> Resource:
+    # Retrieve a single resource
 
-async def list(self, user_id: int, params: ResourceListParams) -> tuple[list[Resource], int]:
+async def get_plist(self, payload: ResourceGetPListPayload) -> tuple[list[Resource], int]:
     # Retrieve paginated resources with total count
 
-async def create(self, payload: CreateResourcePayload) -> Resource:
+async def create_one(self, payload: ResourceCreatePayload, user_id: int) -> Resource:
     # Create a single resource
 
-async def create_batch(self, payloads: list[CreateResourcePayload]) -> list[Resource]:
+async def create_batch(self, payload: ResourceCreateBatchPayload) -> list[Resource]:
     # Create multiple resources atomically
 ```
 
@@ -82,14 +85,18 @@ async def create_batch(self, payloads: list[CreateResourcePayload]) -> list[Reso
 
 ```python
 # Service layer - transforms store results into response models
-async def get(self, payload: ResourceGetPayload) -> ResourceResponse:
-    resource = await self.store.get_by_uuid(payload.uuid, payload.user_id)
-    return ResourceResponse(uuid=resource.uuid, name=resource.name)
+async def get_one(self, payload: ResourceGetPayload) -> ResourceResponse:
+    resource = await self.store.get_one(payload)
+    return ResourceResponse.from_orm(resource)
 
-async def list(self, user_id: int, params: ResourceListParams) -> PaginatedResourceResponse:
-    resources, total = await self.store.list(user_id, params)
-    items = [ResourceResponse(uuid=r.uuid, name=r.name) for r in resources]
-    return PaginatedResourceResponse(items=items, total=total, limit=params.limit, offset=params.offset)
+async def get_plist(self, payload: ResourceGetPListPayload) -> PaginatedResponse[ResourceResponse]:
+    resources, total = await self.store.get_plist(payload)
+    return PaginatedResponse(
+        items=[ResourceResponse.from_orm(r) for r in resources],
+        total=total,
+        limit=payload.params.limit,
+        offset=payload.params.offset
+    )
 ```
 
 ## Logging
@@ -98,74 +105,98 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 
 ## Error Handling
 
-### Custom Exceptions
-- Create domain-specific exceptions that inherit from `HTTPException`
-- Include appropriate HTTP status codes and descriptive error messages
+### Custom Exception Hierarchy
+- Create a base `AppError` class that all domain exceptions inherit from
+- Include status codes and structured error details
 - Example:
   ```python
-  from fastapi import HTTPException, status
-  
-  class ResourceError(HTTPException):
-      """Base class for resource related errors."""
-      
-      def __init__(self, detail: str, status_code: int = status.HTTP_400_BAD_REQUEST):
-          super().__init__(status_code=status_code, detail=detail)
-  
-  class ResourceNotFound(ResourceError):
-      """Raised when a resource is not found."""
-      
-      def __init__(self, resource_uuid: str):
-          detail = f"Resource with UUID {resource_uuid} not found"
-          super().__init__(detail=detail, status_code=status.HTTP_404_NOT_FOUND)
+  class AppError(Exception):
+      """Base exception for all application errors"""
+      status_code = 500
+
+      def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+          self.message = message
+          self.details = details or {}
+          super().__init__(self.message)
+
+  class NotFoundError(AppError):
+      """Raised when a resource is not found"""
+      status_code = 404
+
+      def __init__(self, resource_type: str, identifier: Any, message: Optional[str] = None):
+          details = {"resource_type": resource_type, "identifier": identifier}
+          message = message or f"{resource_type} with identifier {identifier} not found"
+          super().__init__(message=message, details=details)
+  ```
+
+### Domain-Specific Exceptions
+- Create specific exceptions for each domain that inherit from the base error classes
+- Example:
+  ```python
+  class ResourceNotFoundError(NotFoundError):
+      def __init__(self, identifier: str, message: Optional[str] = None):
+          super().__init__(resource_type="Resource", identifier=identifier, message=message)
   ```
 
 ### Store Layer
-- Store methods should handle database-specific logic and data validation
-- Can raise HTTPException for data-not-found scenarios when appropriate
-- Should include helper methods for common operations (e.g., `_find_project`)
-- Focus on raw data access operations and database constraints
+- Store methods should let database/ORM exceptions propagate (e.g., `NoResultFound`)
+- Focus on raw data access operations
+- No exception handling or transformation should happen at this layer
 - Example:
   ```python
-  async def get_by_uuid(self, uuid: str, user_id: int) -> Resource:
-      query = select(Resource).where(Resource.uuid == uuid, Resource.user_id == user_id)
-      result = await self.db.execute(query)
-      resource = result.scalar_one_or_none()
-      
-      if not resource:
-          raise HTTPException(
-              status_code=status.HTTP_404_NOT_FOUND,
-              detail=f"Resource with UUID {uuid} not found"
-          )
-      return resource
+  async def get_one(self, payload: ResourceGetPayload) -> Resource:
+      stmt = select(Resource).where(
+          and_(Resource.uuid == payload.uuid, Resource.user_id == payload.user_id)
+      )
+      res = await self.db.execute(stmt)
+      return res.scalar_one()  # Let NoResultFound propagate up
   ```
 
 ### Service Layer
-- Service methods should orchestrate business logic and coordinate between multiple stores
-- Transform store results into response models
-- Handle complex business operations that span multiple data sources
+- Service methods should catch implementation-specific exceptions (e.g., SQLAlchemy's NoResultFound)
+- Transform these into domain-specific exceptions
+- This keeps implementation details hidden from API consumers
 - Example:
   ```python
-  async def get(self, payload: ResourceGetPayload) -> ResourceResponse:
-      resource = await self.store.get_by_uuid(payload.uuid, payload.user_id)
-      return ResourceResponse(uuid=resource.uuid, name=resource.name)
+  async def get_one(self, payload: ResourceGetPayload) -> ResourceResponse:
+      try:
+          resource = await self.store.get_one(payload)
+          return ResourceResponse.from_orm(resource)
+      except NoResultFound:
+          raise ResourceNotFoundError(identifier=payload.uuid)
+      except MultipleResultsFound:
+          raise ResourceMultipleFoundError(count=2)
   ```
 
 ### Handler Layer
-- Handlers should include try/except blocks for proper error handling and logging
-- Catch specific domain exceptions and let them propagate (they already have proper HTTP status codes)
-- Catch generic exceptions and convert to HTTP 500 errors with logging
+- Handlers should generally not contain try/except blocks for domain exceptions
+- Instead, rely on global exception handlers to transform domain exceptions into HTTP responses
+- Only catch exceptions when specific handler-level logic is needed
 - Example:
   ```python
-  try:
-      return await service.get(payload)
-  except ValueError as e:
-      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-  except Exception as e:
-      log.exception(e)
-      raise HTTPException(
-          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-          detail="Unexpected error"
-      ) from e
+  @router.get("/resources/{uuid}", response_model=ResourceResponse)
+  async def get_resource(uuid: str, user_id: int = Depends(get_current_user_id)):
+      service = ResourceService(db)
+      # No try/except needed - domain exceptions are handled by global handlers
+      return await service.get_one(ResourceGetPayload(uuid=uuid, user_id=user_id))
+  ```
+
+### Global Exception Handling
+- Register global exception handlers for common domain exceptions
+- Map domain exceptions to appropriate HTTP status codes and response formats
+- Ensure consistent error responses across the API
+- Example:
+  ```python
+  @app.exception_handler(AppError)
+  async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+      return JSONResponse(
+          status_code=exc.status_code,
+          content={
+              "error": exc.__class__.__name__,
+              "message": exc.message,
+              "details": exc.details
+          }
+      )
   ```
 
 ## Router Conventions
@@ -241,25 +272,50 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 - Should only include fields that should be exposed to API consumers
 - Example naming: `ResourceResponse`, `PaginatedResourceResponse`
 
-### Pagination Models
-- Use a standard pagination response structure:
+### Generic Types
+- Use generic types for reusable components like pagination:
   ```python
-  class PaginatedResourceResponse(BaseModel):
-      items: List[ResourceResponse]
+  from typing import TypeVar, Generic, List
+  
+  T = TypeVar("T")  # For response item type
+  F = TypeVar("F")  # For filter type
+  S = TypeVar("S")  # For sort field type
+
+  class PaginatedResponse(BaseModel, Generic[T]):
+      items: List[T]
       total: int
       limit: int
       offset: int
+
+  class PaginationParams(BaseModel, Generic[F, S]):
+      limit: int = Field(default=10, ge=1, le=100)
+      offset: int = Field(default=0, ge=0)
+      sort_by: S
+      sort_direction: SortDirection = Field(default=SortDirection.DESC)
+      filter: Optional[F] = None
   ```
 
 ### List Parameters
-- Create structured parameter models for list operations:
+- Create structured parameter models for list operations using generics:
   ```python
-  class ResourceListParams(BaseModel):
-      limit: int = 10
-      offset: int = 0
-      sort_by: ResourceSortField = ResourceSortField.CREATED_AT
-      sort_direction: SortDirection = SortDirection.DESC
-      filter: Optional[ResourceFilter] = None
+  class ResourcePListParams(PaginationParams[ResourceFilter, ResourceSortField]):
+      sort_by: ResourceSortField = Field(default=ResourceSortField.CREATED_AT)
+  ```
+
+### Payload Models Structure
+- Create comprehensive payload models for all operations:
+  ```python
+  class ResourceGetPayload(BaseModel):
+      uuid: str
+      user_id: int
+
+  class ResourceGetPListPayload(BaseModel):
+      user_id: int
+      params: ResourcePListParams
+
+  class ResourceCreateBatchPayload(BaseModel):
+      items: List[ResourceCreatePayload]
+      user_id: int
   ```
 
 ### Enums
