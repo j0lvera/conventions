@@ -350,19 +350,34 @@ func (s *store) CreateAccountWithTransaction(ctx context.Context, input CreateIn
 - `409 Conflict`: Resource conflict (duplicate)
 - `500 Internal Server Error`: Unexpected errors
 
-### Response Format
-Always return consistent JSON responses:
+### Standardized Response Envelope
+Use consistent response structure:
 
 ```go
-// Success response
-return c.JSON(http.StatusOK, map[string]interface{}{
-    "data": result,
-})
+type APIResponse struct {
+    Data    interface{} `json:"data,omitempty"`
+    Error   *APIError   `json:"error,omitempty"`
+    Meta    *Meta       `json:"meta,omitempty"`
+}
 
-// Error response
-return c.JSON(http.StatusBadRequest, map[string]interface{}{
-    "error": "validation failed",
-    "details": validationErrors,
+type APIError struct {
+    Code    string `json:"code"`
+    Message string `json:"message"`
+    Details interface{} `json:"details,omitempty"`
+}
+
+type Meta struct {
+    RequestID string `json:"request_id"`
+    Timestamp string `json:"timestamp"`
+}
+
+// Usage
+return c.JSON(http.StatusOK, APIResponse{
+    Data: result,
+    Meta: &Meta{
+        RequestID: c.Response().Header().Get(echo.HeaderXRequestID),
+        Timestamp: time.Now().UTC().Format(time.RFC3339),
+    },
 })
 ```
 
@@ -392,14 +407,19 @@ func (s *service) GetAccount(ctx context.Context, uuid string, userID int64) (*G
 Logging should primarily happen in the handler layer, closest to the user.
 
 ### Structured Logging
-Always use structured logging with relevant fields:
+Always use structured logging with consistent field names:
 
 ```go
 h.logger.Debug().
-    Str("uuid", input.UUID).
-    Str("userID", userData.UUID). // Use UUID, not ID
+    Str("resource_uuid", input.UUID).
+    Str("user_uuid", userData.UUID).
     Str("operation", "account_retrieval").
     Msg("processing request")
+
+// Error messages should include the resource identifier
+h.logger.Error().Err(err).
+    Str("resource_uuid", input.UUID).
+    Msg("unable to get account")
 ```
 
 ### Log Levels
@@ -442,9 +462,253 @@ Common debug log message patterns:
 
 ### Error Logging
 - Use "unable to <verb> <resource>" for error messages.
-- Instead of "unable to get user", use "unable to get user with ID <userID>".
-- Instead of "error updating ledger, please try again", use "unable to update ledger with ID <ledgerID>".
+- Always include resource identifiers in structured logging fields, not in message text.
+- Use consistent field names: `resource_uuid`, `user_uuid`, etc.
 - Always add a Debug statement after error or successful log statements as "querying ledger params" when getting either "unable to find ledger" or "ledger found".
+
+```go
+// Good: Structured logging with resource identifier
+h.logger.Error().Err(err).
+    Str("resource_uuid", input.UUID).
+    Msg("unable to get account")
+
+// Bad: Resource identifier in message text
+h.logger.Error().Err(err).
+    Msgf("unable to get account with ID %s", input.UUID)
+```
+
+## Middleware Conventions
+
+### Request ID Middleware
+Always include request ID for tracing:
+
+```go
+func RequestIDMiddleware() echo.MiddlewareFunc {
+    return middleware.RequestIDWithConfig(middleware.RequestIDConfig{
+        Generator: func() string {
+            return uuid.New().String()
+        },
+    })
+}
+
+// Use in logging
+h.logger.Debug().
+    Str("request_id", c.Response().Header().Get(echo.HeaderXRequestID)).
+    Msg("processing request")
+```
+
+### Recovery Middleware
+Handle panics gracefully:
+
+```go
+func RecoveryMiddleware(logger *zerolog.Logger) echo.MiddlewareFunc {
+    return middleware.RecoverWithConfig(middleware.RecoverConfig{
+        LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+            logger.Error().
+                Err(err).
+                Bytes("stack", stack).
+                Msg("panic recovered")
+            return nil
+        },
+    })
+}
+```
+
+### Rate Limiting
+Implement rate limiting for public endpoints:
+
+```go
+func RateLimitMiddleware() echo.MiddlewareFunc {
+    return middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+        Store: middleware.NewRateLimiterMemoryStore(20), // 20 requests per second
+        IdentifierExtractor: func(c echo.Context) (string, error) {
+            return c.RealIP(), nil
+        },
+        ErrorHandler: func(c echo.Context, err error) error {
+            return c.JSON(http.StatusTooManyRequests, map[string]string{
+                "error": "rate limit exceeded",
+            })
+        },
+    })
+}
+```
+
+## Database Patterns
+
+### Connection Pooling
+Configure connection pools appropriately:
+
+```go
+// In database setup
+config, err := pgxpool.ParseConfig(databaseURL)
+if err != nil {
+    return nil, fmt.Errorf("unable to parse database URL: %w", err)
+}
+
+config.MaxConns = 30
+config.MinConns = 5
+config.MaxConnLifetime = time.Hour
+config.MaxConnIdleTime = time.Minute * 30
+
+pool, err := pgxpool.ConnectConfig(ctx, config)
+```
+
+### Query Timeouts
+Always use context with timeouts for database operations:
+
+```go
+func (s *store) GetAccount(ctx context.Context, uuid string) (*GetOutput, error) {
+    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+    defer cancel()
+    
+    return s.db.Queries.GetAccount(ctx, uuid)
+}
+```
+
+## Configuration Conventions
+
+### Environment-based Config
+Use environment variables with sensible defaults:
+
+```go
+type Config struct {
+    Port        string `env:"PORT" envDefault:"8080"`
+    DatabaseURL string `env:"DATABASE_URL,required"`
+    LogLevel    string `env:"LOG_LEVEL" envDefault:"info"`
+    Environment string `env:"ENVIRONMENT" envDefault:"development"`
+}
+
+func LoadConfig() (*Config, error) {
+    cfg := &Config{}
+    if err := env.Parse(cfg); err != nil {
+        return nil, fmt.Errorf("unable to parse config: %w", err)
+    }
+    return cfg, nil
+}
+```
+
+### Validation
+Validate configuration on startup:
+
+```go
+func (c *Config) Validate() error {
+    if c.Port == "" {
+        return errors.New("port is required")
+    }
+    if c.DatabaseURL == "" {
+        return errors.New("database URL is required")
+    }
+    return nil
+}
+```
+
+## Server Lifecycle
+
+### Graceful Shutdown
+Implement proper shutdown handling:
+
+```go
+func (s *Server) Start() error {
+    // Start server in goroutine
+    go func() {
+        if err := s.echo.Start(s.config.ListenAddr); err != nil && err != http.ErrServerClosed {
+            s.logger.Fatal().Err(err).Msg("server failed to start")
+        }
+    }()
+
+    // Wait for interrupt signal
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+    <-quit
+
+    s.logger.Info().Msg("shutting down server...")
+
+    // Graceful shutdown with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    return s.echo.Shutdown(ctx)
+}
+```
+
+## Health Checks
+
+Implement comprehensive health checks:
+
+```go
+type HealthChecker struct {
+    db     *pgxpool.Pool
+    logger *zerolog.Logger
+}
+
+func (h *HealthChecker) Check(c echo.Context) error {
+    ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+    defer cancel()
+
+    // Check database connectivity
+    if err := h.db.Ping(ctx); err != nil {
+        h.logger.Error().Err(err).Msg("database health check failed")
+        return c.JSON(http.StatusServiceUnavailable, map[string]string{
+            "status": "unhealthy",
+            "error":  "database unavailable",
+        })
+    }
+
+    return c.JSON(http.StatusOK, map[string]string{
+        "status": "healthy",
+        "timestamp": time.Now().UTC().Format(time.RFC3339),
+    })
+}
+```
+
+## Observability
+
+### Metrics Collection
+Implement basic metrics:
+
+```go
+type Metrics struct {
+    RequestDuration *prometheus.HistogramVec
+    RequestCount    *prometheus.CounterVec
+}
+
+func NewMetrics() *Metrics {
+    return &Metrics{
+        RequestDuration: prometheus.NewHistogramVec(
+            prometheus.HistogramOpts{
+                Name: "http_request_duration_seconds",
+                Help: "HTTP request duration in seconds",
+            },
+            []string{"method", "path", "status"},
+        ),
+        RequestCount: prometheus.NewCounterVec(
+            prometheus.CounterOpts{
+                Name: "http_requests_total",
+                Help: "Total number of HTTP requests",
+            },
+            []string{"method", "path", "status"},
+        ),
+    }
+}
+```
+
+### Request Tracing
+Add correlation IDs for request tracing:
+
+```go
+func (h *Handler) Get() echo.HandlerFunc {
+    return func(c echo.Context) error {
+        requestID := c.Response().Header().Get(echo.HeaderXRequestID)
+        
+        h.logger.Debug().
+            Str("request_id", requestID).
+            Str("operation", "account_retrieval").
+            Msg("processing request")
+        
+        // ... rest of handler
+    }
+}
+```
 
 ## Testing Conventions
 
