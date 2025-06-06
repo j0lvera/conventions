@@ -131,11 +131,24 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 
 ### Domain-Specific Exceptions
 - Create specific exceptions for each domain that inherit from the base error classes
+- Include exceptions for third-party service failures with appropriate status codes
 - Example:
   ```python
   class ResourceNotFoundError(NotFoundError):
       def __init__(self, identifier: str, message: Optional[str] = None):
           super().__init__(resource_type="Resource", identifier=identifier, message=message)
+
+  class AuthenticationError(AppError):
+      status_code = 401
+
+  class AuthServiceUnavailableError(AppError):
+      status_code = 503
+
+  class ExternalServiceError(AppError):
+      status_code = 422
+
+  class RateLimitError(AppError):
+      status_code = 429
   ```
 
 ### Store Layer
@@ -156,6 +169,7 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 - Service methods should catch implementation-specific exceptions (e.g., SQLAlchemy's NoResultFound)
 - Transform these into domain-specific exceptions
 - This keeps implementation details hidden from API consumers
+- Handle third-party library exceptions and transform them into domain exceptions
 - Example:
   ```python
   async def get_one(self, payload: ResourceGetPayload) -> ResourceResponse:
@@ -166,6 +180,15 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
           raise ResourceNotFoundError(identifier=payload.uuid)
       except MultipleResultsFound:
           raise ResourceMultipleFoundError(count=2)
+
+  async def authenticate_user(self, token: str) -> User:
+      try:
+          user_data = await auth_provider.validate_token(token)
+          return User.from_dict(user_data)
+      except AuthProviderError as e:
+          raise AuthenticationError(f"Invalid token: {str(e)}")
+      except ConnectionError as e:
+          raise AuthServiceUnavailableError(f"Auth service unavailable: {str(e)}")
   ```
 
 ### Handler Layer
@@ -258,7 +281,30 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 ### External Service Integration
 - Services should handle integration with external APIs or services
 - Include proper error handling for external service failures
+- Transform third-party exceptions into domain exceptions at the service layer
 - Log detailed information about external service interactions
+
+### Third-Party Error Handling
+- Catch exceptions from third-party libraries (auth providers, AI services, payment processors, etc.)
+- Transform them into meaningful domain exceptions with appropriate HTTP status codes
+- Provide context-specific error messages that make sense to API consumers
+- Example:
+  ```python
+  async def process_payment(self, amount: Decimal) -> PaymentResponse:
+      try:
+          result = await payment_provider.charge(amount)
+          return PaymentResponse.from_provider(result)
+      except PaymentProviderError as e:
+          raise PaymentFailedError(f"Payment processing failed: {str(e)}")
+      except InsufficientFundsError:
+          raise PaymentInsufficientFundsError("Insufficient funds for transaction")
+      except RateLimitError:
+          raise PaymentRateLimitError("Too many payment attempts, please try again later")
+  ```
+
+### Utility Function Error Handling
+- For utility functions, either let exceptions propagate to be handled by the calling service, or transform to domain exceptions if the utility is domain-specific
+- Services calling utilities should handle the exceptions with proper business context
 
 ## Pydantic Models and Types
 

@@ -14,6 +14,149 @@ Use these examples as reference for implementing the conventions described in fa
 ## Examples
 
 ```py
+# auth/errors.py
+from typing import Optional, Dict, Any
+from proj.errors import AppError
+
+class AuthenticationError(AppError):
+    """Raised when authentication fails"""
+    status_code = 401
+
+class AuthServiceUnavailableError(AppError):
+    """Raised when auth service is unavailable"""
+    status_code = 503
+
+class TokenExpiredError(AppError):
+    """Raised when auth token has expired"""
+    status_code = 401
+
+# auth/service.py
+import logging
+from typing import Optional
+from auth.errors import AuthenticationError, AuthServiceUnavailableError, TokenExpiredError
+
+logger = logging.getLogger(__name__)
+
+class AuthService:
+    def __init__(self, auth_provider):
+        self.auth_provider = auth_provider
+
+    async def authenticate_user(self, token: str) -> User:
+        """
+        Authenticate a user using a token
+        
+        :param token: Authentication token
+        :return: Authenticated user
+        :raises AuthenticationError: If token is invalid
+        :raises AuthServiceUnavailableError: If auth service is down
+        :raises TokenExpiredError: If token has expired
+        """
+        try:
+            user_data = await self.auth_provider.validate_token(token)
+            logger.info({"user_id": user_data.get("id")}, "User authenticated successfully")
+            return User.from_dict(user_data)
+        except AuthProviderInvalidTokenError as e:
+            logger.warning({"token_prefix": token[:8]}, "Invalid authentication token")
+            raise AuthenticationError(f"Invalid token: {str(e)}")
+        except AuthProviderExpiredTokenError as e:
+            logger.warning({"token_prefix": token[:8]}, "Expired authentication token")
+            raise TokenExpiredError("Authentication token has expired")
+        except ConnectionError as e:
+            logger.error({"error": str(e)}, "Auth service connection failed")
+            raise AuthServiceUnavailableError(f"Auth service unavailable: {str(e)}")
+        except Exception as e:
+            logger.exception("Unexpected error during authentication")
+            raise AuthServiceUnavailableError(f"Authentication service error: {str(e)}")
+
+# images/errors.py
+from proj.errors import AppError
+
+class AltTextGenerationError(AppError):
+    """Raised when alt text generation fails"""
+    status_code = 422
+
+class AltTextRateLimitError(AppError):
+    """Raised when AI service rate limit is exceeded"""
+    status_code = 429
+
+class ImageProcessingError(AppError):
+    """Raised when image processing fails"""
+    status_code = 422
+
+class InvalidImageFormatError(AppError):
+    """Raised when image format is not supported"""
+    status_code = 400
+
+# images/service.py (partial - showing third-party error handling)
+import logging
+from PIL import UnidentifiedImageError
+from images.errors import AltTextGenerationError, AltTextRateLimitError, ImageProcessingError, InvalidImageFormatError
+
+logger = logging.getLogger(__name__)
+
+class ImageService:
+    def __init__(self, store: ImageStore, ai_service):
+        self.store = store
+        self.ai_service = ai_service
+
+    async def generate_alt_text(self, image_uuid: str) -> ImageResponse:
+        """
+        Generate alt text for an image using AI service
+        
+        :param image_uuid: UUID of the image
+        :return: Updated image with alt text
+        :raises AltTextGenerationError: If AI service fails
+        :raises AltTextRateLimitError: If rate limit exceeded
+        """
+        try:
+            image = await self.store.get_one(ImageGetPayload(uuid=image_uuid))
+            
+            # Call external AI service
+            response = await self.ai_service.generate_alt_text(image.url)
+            alt_text = response.alt_text
+            
+            # Update image with generated alt text
+            updated_image = await self.store.update_alt_text(image_uuid, alt_text)
+            
+            logger.info({"image_uuid": image_uuid}, "Alt text generated successfully")
+            return ImageResponse.from_orm(updated_image)
+            
+        except AIServiceError as e:
+            logger.error({"image_uuid": image_uuid, "error": str(e)}, "AI service error")
+            raise AltTextGenerationError(f"Failed to generate alt text: {str(e)}")
+        except RateLimitError as e:
+            logger.warning({"image_uuid": image_uuid}, "AI service rate limit exceeded")
+            raise AltTextRateLimitError("Rate limit exceeded for AI service")
+        except ConnectionError as e:
+            logger.error({"image_uuid": image_uuid, "error": str(e)}, "AI service connection failed")
+            raise AltTextGenerationError(f"AI service unavailable: {str(e)}")
+
+    async def process_image(self, image_data: bytes) -> ProcessedImageResponse:
+        """
+        Process and resize an image
+        
+        :param image_data: Raw image bytes
+        :return: Processed image response
+        :raises InvalidImageFormatError: If image format not supported
+        :raises ImageProcessingError: If processing fails
+        """
+        try:
+            # Use utility function that may raise PIL exceptions
+            processed_data = resize_image(image_data)
+            
+            logger.info("Image processed successfully")
+            return ProcessedImageResponse(data=processed_data)
+            
+        except UnidentifiedImageError:
+            logger.warning("Unsupported image format provided")
+            raise InvalidImageFormatError("Unsupported image format")
+        except MemoryError:
+            logger.error("Image too large to process")
+            raise ImageProcessingError("Image too large to process")
+        except Exception as e:
+            logger.exception("Unexpected error during image processing")
+            raise ImageProcessingError(f"Image processing failed: {str(e)}")
+
 # utils.py (global utils)
 def apply_filters(query, model, filter_obj):
     """
