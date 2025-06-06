@@ -567,38 +567,114 @@ func (s *store) GetAccount(ctx context.Context, uuid string) (*GetOutput, error)
 
 ## Configuration Conventions
 
-### Environment-based Config
-Use environment variables with sensible defaults:
+### Environment-based Config with envconfig
+Use the `envconfig` package for clean environment variable handling:
 
 ```go
+package config
+
+import (
+	"github.com/kelseyhightower/envconfig"
+)
+
 type Config struct {
-    Port        string `env:"PORT" envDefault:"8080"`
-    DatabaseURL string `env:"DATABASE_URL,required"`
-    LogLevel    string `env:"LOG_LEVEL" envDefault:"info"`
-    Environment string `env:"ENVIRONMENT" envDefault:"development"`
+	Port        string `envconfig:"PORT" default:"8080"`
+	DatabaseURL string `envconfig:"DATABASE_URL"`
+	LogLevel    string `envconfig:"LOG_LEVEL" default:"info"`
+	Environment string `envconfig:"ENVIRONMENT" default:"development"`
+	Token       string `envconfig:"TELEGRAM_API_TOKEN"`
+	Model       string `envconfig:"MODEL" default:"llama3"`
+	HistoryLimit int   `envconfig:"HISTORY_LIMIT" default:"10"`
 }
 
-func LoadConfig() (*Config, error) {
-    cfg := &Config{}
-    if err := env.Parse(cfg); err != nil {
-        return nil, fmt.Errorf("unable to parse config: %w", err)
-    }
-    return cfg, nil
+// LoadEnv loads the configuration from environment variables
+func (c Config) LoadEnv() (Config, error) {
+	cfg := c
+
+	// load environment variables into the Config struct
+	if err := envconfig.Process("", &cfg); err != nil {
+		// if there is an error, return the default config and the error
+		return c, err
+	}
+
+	// return the loaded config
+	return cfg, nil
+}
+
+func NewConfig() (*Config, error) {
+	var cfg Config
+	loadedCfg, err := cfg.LoadEnv()
+	if err != nil {
+		return nil, err
+	}
+	return &loadedCfg, nil
 }
 ```
 
+### Configuration Patterns
+
+#### Use envconfig tags
+- Use `envconfig:"VAR_NAME"` to specify environment variable names
+- Use `default:"value"` for sensible defaults
+- Omit `default` tag for required variables
+
+#### Method-based Loading
+Implement a `LoadEnv()` method that:
+- Takes a receiver of the config type
+- Returns the loaded config and error
+- Uses `envconfig.Process("", &cfg)` for loading
+
+#### Constructor Pattern
+- Implement `NewConfig()` that returns `(*Config, error)`
+- Handle errors from `LoadEnv()` appropriately
+- Return pointer to loaded configuration
+
 ### Validation
-Validate configuration on startup:
+Validate configuration after loading:
 
 ```go
 func (c *Config) Validate() error {
-    if c.Port == "" {
-        return errors.New("port is required")
-    }
-    if c.DatabaseURL == "" {
-        return errors.New("database URL is required")
-    }
-    return nil
+	if c.DatabaseURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	if c.Port == "" {
+		return errors.New("PORT is required")
+	}
+	return nil
+}
+
+// Enhanced NewConfig with validation
+func NewConfig() (*Config, error) {
+	var cfg Config
+	loadedCfg, err := cfg.LoadEnv()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load config: %w", err)
+	}
+	
+	if err := loadedCfg.Validate(); err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+	
+	return &loadedCfg, nil
+}
+```
+
+### Environment Variable Naming
+- Use SCREAMING_SNAKE_CASE for environment variables
+- Group related variables with prefixes (e.g., `DB_HOST`, `DB_PORT`)
+- Use descriptive names that indicate purpose
+
+### Usage Example
+```go
+func main() {
+	cfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatal("Failed to load configuration:", err)
+	}
+	
+	// Use configuration
+	server := NewServer(cfg)
+	server.Start()
 }
 ```
 
