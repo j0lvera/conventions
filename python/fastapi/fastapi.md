@@ -94,20 +94,7 @@ async def list(self, user_id: int, params: ResourceListParams) -> PaginatedResou
 
 ## Logging
 
-- Logging should primarily happen at the router (handler) level
-- Use structured logging with the following levels:
-  - DEBUG: For detailed information about function inputs and parameters
-  - INFO: For tracking successful operations (e.g., "account created")
-  - WARNING: For non-critical issues that might need attention
-  - ERROR: For operation failures with error details
-
-- Always include context in logs:
-  - For DEBUG logs: Include input parameters with `logger.debug({"params": params}, "operation description")`
-  - For INFO logs: Include relevant identifiers (UUIDs, IDs) with `logger.info({"uuid": item.uuid}, "item created")`
-  - For ERROR logs: Include the error with `logger.error({"error": str(err)}, "unable to complete operation")`
-
-- Do not log sensitive information (passwords, tokens, etc.)
-- Service and store layers should only log in exceptional cases or when detailed debugging is needed
+See [logging.md](logging.md) for detailed logging conventions and best practices.
 
 ## Error Handling
 
