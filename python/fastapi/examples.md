@@ -1,6 +1,165 @@
-Use these examples as reference.
+# FastAPI Examples
+
+Use these examples as reference for implementing the conventions described in fastapi.md.
+
+## Key Patterns Demonstrated
+
+- **Payload-based architecture**: All methods use payload objects for type safety
+- **Generic types**: Reusable pagination and response structures
+- **Error hierarchy**: Comprehensive error handling with base AppError class
+- **Global exception handling**: Centralized error handling in handlers
+- **Method naming**: Consistent `get_one`, `get_list`, `get_plist` patterns
+- **Store/Service/Handler separation**: Clear separation of concerns
+
+## Examples
 
 ```py
+# auth/errors.py
+from typing import Optional, Dict, Any
+from proj.errors import AppError
+
+class AuthenticationError(AppError):
+    """Raised when authentication fails"""
+    status_code = 401
+
+class AuthServiceUnavailableError(AppError):
+    """Raised when auth service is unavailable"""
+    status_code = 503
+
+class TokenExpiredError(AppError):
+    """Raised when auth token has expired"""
+    status_code = 401
+
+# auth/service.py
+import logging
+from typing import Optional
+from proj.auth.errors import AuthenticationError, AuthServiceUnavailableError, TokenExpiredError
+from proj.users.models import User
+
+logger = logging.getLogger(__name__)
+
+class AuthService:
+    def __init__(self, auth_provider):
+        self.auth_provider = auth_provider
+
+    async def authenticate_user(self, token: str) -> User:
+        """
+        Authenticate a user using a token
+        
+        :param token: Authentication token
+        :return: Authenticated user
+        :raises AuthenticationError: If token is invalid
+        :raises AuthServiceUnavailableError: If auth service is down
+        :raises TokenExpiredError: If token has expired
+        """
+        try:
+            user_data = await self.auth_provider.validate_token(token)
+            logger.info({"user_id": user_data.get("id")}, "User authenticated successfully")
+            return User.from_dict(user_data)
+        except AuthProviderInvalidTokenError as e:
+            logger.warning({"token_prefix": token[:8]}, "Invalid authentication token")
+            raise AuthenticationError(f"Invalid token: {str(e)}")
+        except AuthProviderExpiredTokenError as e:
+            logger.warning({"token_prefix": token[:8]}, "Expired authentication token")
+            raise TokenExpiredError("Authentication token has expired")
+        except ConnectionError as e:
+            logger.error({"error": str(e)}, "Auth service connection failed")
+            raise AuthServiceUnavailableError(f"Auth service unavailable: {str(e)}")
+        except Exception as e:
+            logger.exception("Unexpected error during authentication")
+            raise AuthServiceUnavailableError(f"Authentication service error: {str(e)}")
+
+# images/errors.py
+from proj.errors import AppError
+
+class AltTextGenerationError(AppError):
+    """Raised when alt text generation fails"""
+    status_code = 422
+
+class AltTextRateLimitError(AppError):
+    """Raised when AI service rate limit is exceeded"""
+    status_code = 429
+
+class ImageProcessingError(AppError):
+    """Raised when image processing fails"""
+    status_code = 422
+
+class InvalidImageFormatError(AppError):
+    """Raised when image format is not supported"""
+    status_code = 400
+
+# images/service.py (partial - showing third-party error handling)
+import logging
+from PIL import UnidentifiedImageError
+from proj.images.errors import AltTextGenerationError, AltTextRateLimitError, ImageProcessingError, InvalidImageFormatError
+from proj.images.store import ImageStore
+from proj.images.types import ImageGetPayload, ImageResponse, ProcessedImageResponse
+
+logger = logging.getLogger(__name__)
+
+class ImageService:
+    def __init__(self, store: ImageStore, ai_service):
+        self.store = store
+        self.ai_service = ai_service
+
+    async def generate_alt_text(self, image_uuid: str) -> ImageResponse:
+        """
+        Generate alt text for an image using AI service
+        
+        :param image_uuid: UUID of the image
+        :return: Updated image with alt text
+        :raises AltTextGenerationError: If AI service fails
+        :raises AltTextRateLimitError: If rate limit exceeded
+        """
+        try:
+            image = await self.store.get_one(ImageGetPayload(uuid=image_uuid))
+            
+            # Call external AI service
+            response = await self.ai_service.generate_alt_text(image.url)
+            alt_text = response.alt_text
+            
+            # Update image with generated alt text
+            updated_image = await self.store.update_alt_text(image_uuid, alt_text)
+            
+            logger.info({"image_uuid": image_uuid}, "Alt text generated successfully")
+            return ImageResponse.from_orm(updated_image)
+            
+        except AIServiceError as e:
+            logger.error({"image_uuid": image_uuid, "error": str(e)}, "AI service error")
+            raise AltTextGenerationError(f"Failed to generate alt text: {str(e)}")
+        except RateLimitError as e:
+            logger.warning({"image_uuid": image_uuid}, "AI service rate limit exceeded")
+            raise AltTextRateLimitError("Rate limit exceeded for AI service")
+        except ConnectionError as e:
+            logger.error({"image_uuid": image_uuid, "error": str(e)}, "AI service connection failed")
+            raise AltTextGenerationError(f"AI service unavailable: {str(e)}")
+
+    async def process_image(self, image_data: bytes) -> ProcessedImageResponse:
+        """
+        Process and resize an image
+        
+        :param image_data: Raw image bytes
+        :return: Processed image response
+        :raises InvalidImageFormatError: If image format not supported
+        :raises ImageProcessingError: If processing fails
+        """
+        try:
+            # Use utility function that may raise PIL exceptions
+            processed_data = resize_image(image_data)
+            
+            logger.info("Image processed successfully")
+            return ProcessedImageResponse(data=processed_data)
+            
+        except UnidentifiedImageError:
+            logger.warning("Unsupported image format provided")
+            raise InvalidImageFormatError("Unsupported image format")
+        except MemoryError:
+            logger.error("Image too large to process")
+            raise ImageProcessingError("Image too large to process")
+        except Exception as e:
+            logger.exception("Unexpected error during image processing")
+            raise ImageProcessingError(f"Image processing failed: {str(e)}")
+
 # utils.py (global utils)
 def apply_filters(query, model, filter_obj):
     """
@@ -190,7 +349,12 @@ class ProjectCreationError(AppError):
         super().__init__(message=message, details=details or {})
 
 # projects/models.py
+from datetime import datetime
 from enum import Enum
+from typing import Optional
+
+from sqlalchemy import BigInteger, String, ForeignKey, func, text, UniqueConstraint, CheckConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from proj.database import Base
 
@@ -231,10 +395,10 @@ class Project(Base):
 # projects/types.py
 from enum import Enum
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, validator
 from datetime import datetime
 
-from proj.types import SortField, PaginationParams
+from proj.types import SortField, PaginationParams, PaginatedResponse
 from proj.projects.models import ProjectType
 
 class ProjectResponse(BaseModel):
@@ -349,8 +513,16 @@ class ProjectCreatePayload(BaseModel):
 
     Used in create operations
     """
-    url: HttpUrl
-    type: ProjectType
+    url: HttpUrl = Field(..., description="Project URL")
+    type: ProjectType = Field(..., description="Project type")
+    
+    @validator('url')
+    def validate_url(cls, v):
+        """Ensure URL is accessible and valid"""
+        url_str = str(v)
+        if not url_str.startswith(('http://', 'https://')):
+            raise ValueError('URL must start with http:// or https://')
+        return v
 
 # projects/store.py
 from sqlalchemy import select, and_, func, delete
@@ -531,10 +703,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound, IntegrityError
 import logging
 
-from proj.projects.types import ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, ProjectResponse, PaginatedResponse, ProjectCreatePayload, ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+from proj.projects.types import (
+    ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, 
+    ProjectResponse, PaginatedResponse, ProjectCreatePayload, 
+    ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+)
 from proj.projects.models import Project
 from proj.projects.store import ProjectStore
-from proj.projects.errors import ProjectNotFoundError, ProjectMultipleFoundError
+from proj.projects.errors import ProjectNotFoundError, ProjectMultipleFoundError, ProjectCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -742,20 +918,24 @@ register_exception_handlers(app)
 app.include_router(projects_router, prefix="/api/v1")
 
 # projects/handler.py
-from fastapi import Depends, APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from typing import List
 
-from proj.projects.types import ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, ProjectResponse, PaginatedResponse, ProjectPListParams, ProjectCreatePayload, ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+from proj.projects.types import (
+    ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, 
+    ProjectResponse, PaginatedResponse, ProjectPListParams, ProjectCreatePayload, 
+    ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+)
 from proj.projects.service import ProjectService
-from proj.db import get_db
+from proj.database import get_db
 from proj.auth import get_current_user_id
 
-router = APIRouter()
+router = APIRouter(prefix="/projects", tags=["projects"])
 logger = logging.getLogger(__name__)
 
-@router.get("/projects/{uuid}", response_model=ProjectResponse)
+@router.get("/{uuid}", response_model=ProjectResponse)
 async def get_project(
     uuid: str,
     user_id: int = Depends(get_current_user_id),
@@ -777,7 +957,7 @@ async def get_project(
     logger.info({"uuid": uuid}, "Project retrieved successfully")
     return result
 
-@router.get("/projects", response_model=PaginatedResponse[ProjectResponse])
+@router.get("/", response_model=PaginatedResponse[ProjectResponse])
 async def get_projects_list(
     params: ProjectPListParams = Depends(),
     user_id: int = Depends(get_current_user_id),
@@ -818,7 +998,7 @@ async def get_projects_list(
 
     return result
 
-@router.post("/projects", response_model=ProjectResponse, status_code=201)
+@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     payload: ProjectCreatePayload,
     user_id: int = Depends(get_current_user_id),
@@ -854,7 +1034,7 @@ async def create_project(
 
     return result
 
-@router.post("/projects/batch", response_model=List[ProjectResponse], status_code=201)
+@router.post("/batch", response_model=List[ProjectResponse], status_code=status.HTTP_201_CREATED)
 async def create_projects_batch(
     payload: List[ProjectCreatePayload],
     user_id: int = Depends(get_current_user_id),
@@ -890,7 +1070,7 @@ async def create_projects_batch(
 
     return result
 
-@router.delete("/projects/{uuid}", status_code=204)
+@router.delete("/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     uuid: str,
     user_id: int = Depends(get_current_user_id),
@@ -926,7 +1106,7 @@ async def delete_project(
 
     return None
 
-@router.delete("/projects/batch", status_code=200)
+@router.delete("/batch", status_code=status.HTTP_200_OK)
 async def delete_projects_batch(
     uuids: List[str],
     user_id: int = Depends(get_current_user_id),
