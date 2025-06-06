@@ -10,6 +10,71 @@ We use **zerolog** for all structured logging:
 import "github.com/rs/zerolog"
 ```
 
+## Logger Setup
+
+Create a logger configuration in a dedicated package:
+
+```go
+package log
+
+import (
+	"os"
+	"time"
+
+	"github.com/rs/zerolog"
+)
+
+// NewLogger creates a configured zerolog.Logger instance
+func NewLogger() zerolog.Logger {
+	level := zerolog.InfoLevel
+	if os.Getenv("DEBUG") == "true" {
+		level = zerolog.DebugLevel
+
+		logWriter := zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: time.RFC3339,
+		}
+
+		return zerolog.New(logWriter).
+			Level(level).
+			With().
+			Timestamp().
+			Caller().
+			Logger()
+	}
+
+	return zerolog.New(os.Stdout).
+		Level(level).
+		With().
+		Timestamp().
+		Logger()
+}
+```
+
+### Environment-Based Configuration
+
+- **Production**: JSON output to stdout, Info level
+- **Development**: Pretty console output with caller info, Debug level
+- **Control**: Use `DEBUG=true` environment variable
+
+### Usage in Main
+
+```go
+func main() {
+    logger := log.NewLogger()
+    
+    // Pass to handlers
+    handler := NewHandler(service, &logger)
+}
+```
+
+### Key Features
+
+- **Timestamps**: Always included for log correlation
+- **Caller info**: Only in debug mode (performance consideration)
+- **Console writer**: Human-readable format for development
+- **JSON output**: Machine-readable format for production
+
 ## Handler Pattern
 
 Always inject logger into handlers via constructor:
