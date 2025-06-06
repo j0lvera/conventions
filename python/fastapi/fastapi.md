@@ -49,30 +49,48 @@ Each package should contain these standard components:
 
 When implementing data retrieval methods, follow these naming patterns consistently:
 
-- `get_one`: Retrieve a single resource by its identifier (usually UUID or ID)
-- `get_list`: Retrieve all resources (without pagination) that match certain criteria
-- `get_plist`: Retrieve a paginated list of resources with support for:
+- `get`: Retrieve a single resource by its identifier (usually UUID or ID)
+- `get_by_uuid`: Retrieve a single resource by UUID (when UUID is the primary lookup)
+- `list`: Retrieve a paginated list of resources with support for:
   - Pagination (limit/offset)
   - Sorting (sort_by/sort_direction)
   - Filtering (filter parameters)
+- `create`: Create a single resource
+- `create_batch`: Create multiple resources atomically
+- `update_*`: Update specific fields of a resource
 
 These method names should be used consistently across all layers (store, service, handler) to maintain a clear understanding of the method's purpose and behavior.
 
-### Example:
+### Store Layer Examples:
 
 ```python
 # Store layer
-async def get_one(self, payload: ResourceGetPayload) -> Resource:
-    # Retrieve a single resource by ID
+async def get_by_uuid(self, uuid: str, user_id: int) -> Resource:
+    # Retrieve a single resource by UUID
 
-async def get_list(self, payload: ResourceGetListPayload) -> list[Resource]:
-    # Retrieve all resources matching criteria (no pagination)
-
-async def get_plist(self, payload: ResourceGetPListPayload) -> tuple[list[Resource], int]:
+async def list(self, user_id: int, params: ResourceListParams) -> tuple[list[Resource], int]:
     # Retrieve paginated resources with total count
+
+async def create(self, payload: CreateResourcePayload) -> Resource:
+    # Create a single resource
+
+async def create_batch(self, payloads: list[CreateResourcePayload]) -> list[Resource]:
+    # Create multiple resources atomically
 ```
 
-The corresponding service layer methods should follow the same naming pattern.
+### Service Layer Examples:
+
+```python
+# Service layer - transforms store results into response models
+async def get(self, payload: ResourceGetPayload) -> ResourceResponse:
+    resource = await self.store.get_by_uuid(payload.uuid, payload.user_id)
+    return ResourceResponse(uuid=resource.uuid, name=resource.name)
+
+async def list(self, user_id: int, params: ResourceListParams) -> PaginatedResourceResponse:
+    resources, total = await self.store.list(user_id, params)
+    items = [ResourceResponse(uuid=r.uuid, name=r.name) for r in resources]
+    return PaginatedResourceResponse(items=items, total=total, limit=params.limit, offset=params.offset)
+```
 
 ## Logging
 
@@ -115,21 +133,34 @@ The corresponding service layer methods should follow the same naming pattern.
   ```
 
 ### Store Layer
-- Store methods should let database/ORM exceptions propagate
-- No exception handling or transformation should happen at this layer
-- Focus on raw data access operations
-
-### Service Layer
-- Service methods should catch implementation-specific exceptions (e.g., SQLAlchemy's NoResultFound)
-- Transform these into domain-specific exceptions
-- This keeps implementation details hidden from API consumers
+- Store methods should handle database-specific logic and data validation
+- Can raise HTTPException for data-not-found scenarios when appropriate
+- Should include helper methods for common operations (e.g., `_find_project`)
+- Focus on raw data access operations and database constraints
 - Example:
   ```python
-  try:
-      result = await self.store.get_one(id)
-      return result
-  except NoResultFound:
-      raise ResourceNotFound(resource_uuid=id)
+  async def get_by_uuid(self, uuid: str, user_id: int) -> Resource:
+      query = select(Resource).where(Resource.uuid == uuid, Resource.user_id == user_id)
+      result = await self.db.execute(query)
+      resource = result.scalar_one_or_none()
+      
+      if not resource:
+          raise HTTPException(
+              status_code=status.HTTP_404_NOT_FOUND,
+              detail=f"Resource with UUID {uuid} not found"
+          )
+      return resource
+  ```
+
+### Service Layer
+- Service methods should orchestrate business logic and coordinate between multiple stores
+- Transform store results into response models
+- Handle complex business operations that span multiple data sources
+- Example:
+  ```python
+  async def get(self, payload: ResourceGetPayload) -> ResourceResponse:
+      resource = await self.store.get_by_uuid(payload.uuid, payload.user_id)
+      return ResourceResponse(uuid=resource.uuid, name=resource.name)
   ```
 
 ### Handler Layer
@@ -172,6 +203,44 @@ The corresponding service layer methods should follow the same naming pattern.
 - Include proper status codes in route decorators
 - Use Query parameters with validation for filtering, pagination, and sorting
 - Include comprehensive docstrings for API documentation
+
+## Store Layer Best Practices
+
+### Database Session Management
+- Store classes should accept an AsyncSession in their constructor
+- Use `await self.db.flush()` to ensure queries complete before proceeding
+- Use `await self.db.commit()` for operations that modify data
+
+### Helper Methods
+- Create private helper methods for common operations (prefix with `_`)
+- Example: `async def _find_project(self, project_uuid: str) -> Project`
+
+### Batch Operations
+- Implement batch creation methods for bulk operations
+- Skip existing records to avoid duplicates
+- Log information about skipped records
+
+### Synchronous Methods for Background Tasks
+- Provide synchronous versions of critical methods for Celery tasks
+- Use static methods that accept a synchronous Session
+- Example:
+  ```python
+  @staticmethod
+  def sync_create_batch(session: Session, payloads: list[CreatePayload]) -> list[Resource]:
+      # Synchronous implementation for Celery tasks
+  ```
+
+## Service Layer Best Practices
+
+### Response Model Transformation
+- Services should always return response models, not database models
+- Transform database models into Pydantic response models
+- Handle any business logic transformations
+
+### External Service Integration
+- Services should handle integration with external APIs or services
+- Include proper error handling for external service failures
+- Log detailed information about external service interactions
 
 ## Testing
 
