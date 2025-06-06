@@ -608,7 +608,7 @@ class ProjectService:
                 )
             raise ProjectCreationError(reason=str(e))
         except Exception as e:
-            logger.error({"error": str(e), "url": str(payload.url)}, "Failed to create project")
+            logger.error("Failed to create project", error=str(e), url=str(payload.url))
             raise ProjectCreationError(reason=str(e))
 
     async def create_batch(self, payload: ProjectCreateBatchPayload) -> list[ProjectResponse]:
@@ -631,7 +631,7 @@ class ProjectService:
                 )
             raise ProjectCreationError(reason=str(e))
         except Exception as e:
-            logger.error({"error": str(e), "count": len(payload.items)}, "Failed to create projects batch")
+            logger.error("Failed to create projects batch", error=str(e), count=len(payload.items))
             raise ProjectCreationError(reason=f"Failed to create projects batch: {str(e)}")
 
     async def delete_one(self, payload: ProjectDeletePayload) -> bool:
