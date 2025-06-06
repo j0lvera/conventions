@@ -75,6 +75,15 @@ func main() {
 - **Console writer**: Human-readable format for development
 - **JSON output**: Machine-readable format for production
 
+## Logging Location
+
+Logging should primarily happen in the handler layer, closest to the user. This ensures:
+
+- Consistent logging across all endpoints
+- Proper context about user requests
+- Clear separation of concerns
+- Easy debugging of user-facing issues
+
 ## Handler Pattern
 
 Always inject logger into handlers via constructor:
@@ -104,13 +113,20 @@ Use these levels consistently:
 ## Message Patterns
 
 ### Debug Messages
-Log operation start with user context:
+Always log before executing an action using resource name + action in noun form:
 
 ```go
 h.logger.Debug().
-    Interface("params", userData).
-    Msg("account creation")
+    Interface("params", input).
+    Msg("ledger creation")
 ```
+
+Common patterns:
+- "resource creation"
+- "resource updating" 
+- "resource deletion"
+- "resource retrieval"
+- "resources listing"
 
 ### Info Messages
 Log successful operations with resource identifiers:
@@ -121,10 +137,10 @@ h.logger.Info().Msg("accounts listed")
 ```
 
 ### Error Messages
-Log failures with error and descriptive message:
+Use consistent format: "unable to <verb> <resource> with ID <resourceID>"
 
 ```go
-h.logger.Error().Err(err).Msg("unable to create account")
+h.logger.Error().Err(err).Msg("unable to update ledger with UUID " + input.UUID)
 ```
 
 ## Field Naming
@@ -148,24 +164,24 @@ Keep messages:
 Follow this pattern for standard CRUD operations:
 
 ```go
-// GET
-h.logger.Debug().Interface("params", userData).Msg("account retrieval")
-h.logger.Info().Str("uuid", input.UUID).Msg("account found")
-
 // CREATE
-h.logger.Debug().Interface("params", userData).Msg("account creation")
+h.logger.Debug().Interface("params", input).Msg("account creation")
 h.logger.Info().Str("uuid", account.UUID).Msg("account created")
 
+// GET
+h.logger.Debug().Interface("params", input).Msg("account retrieval")
+h.logger.Info().Str("uuid", account.UUID).Msg("account found")
+
 // LIST
-h.logger.Debug().Interface("params", userData).Msg("accounts listing")
+h.logger.Debug().Interface("params", input).Msg("accounts listing")
 h.logger.Info().Msg("accounts listed")
 
 // UPDATE
-h.logger.Debug().Interface("params", userData).Msg("account updating")
+h.logger.Debug().Interface("params", input).Msg("account updating")
 h.logger.Info().Str("uuid", account.UUID).Msg("account updated")
 
 // DELETE
-h.logger.Debug().Interface("params", userData).Msg("account deletion")
+h.logger.Debug().Interface("params", input).Msg("account deletion")
 h.logger.Info().Str("uuid", input.UUID).Msg("account deleted")
 ```
 
