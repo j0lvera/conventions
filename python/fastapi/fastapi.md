@@ -40,10 +40,14 @@ Each package should contain these standard components:
 ## Code Style
 
 - Follow PEP 8 style guidelines
-- Use type hints consistently
-- Write docstrings for all public methods and functions
+- Use type hints consistently (prefer `list[T]` over `List[T]` for Python 3.9+)
+- Write docstrings for all public methods and functions using Google or NumPy style
 - Keep functions focused on a single responsibility
+- Use `async`/`await` consistently - don't mix sync and async code
 - Write unit tests for all business logic
+- Use meaningful variable names that express intent
+- Prefer composition over inheritance
+- Follow the principle of least privilege for database access
 
 ## Method Naming Conventions
 
@@ -244,6 +248,32 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 - Include proper status codes in route decorators
 - Use Query parameters with validation for filtering, pagination, and sorting
 - Include comprehensive docstrings for API documentation
+- Use proper HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Implement proper request/response models for OpenAPI documentation
+
+### Dependency Management
+- Use dependency injection for database sessions, authentication, and services
+- Implement dependency scopes (request, session, application)
+- Use `Depends()` with proper type hints
+- Create reusable dependencies for common operations
+- Example:
+  ```python
+  async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+      # Authentication logic
+      return user
+  
+  async def get_db() -> AsyncGenerator[AsyncSession, None]:
+      async with async_session() as session:
+          yield session
+  ```
+
+### Security Best Practices
+- Always validate and sanitize input data
+- Use parameterized queries to prevent SQL injection
+- Implement proper authentication and authorization
+- Use HTTPS in production
+- Validate file uploads and limit file sizes
+- Implement rate limiting for API endpoints
 
 ## Store Layer Best Practices
 
@@ -251,15 +281,33 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 - Store classes should accept an AsyncSession in their constructor
 - Use `await self.db.flush()` to ensure queries complete before proceeding
 - Use `await self.db.commit()` for operations that modify data
+- Always use async context managers for database operations
+- Handle database connection pooling at the application level
+
+### Query Optimization
+- Use `select()` with explicit column selection when possible
+- Implement proper indexing on frequently queried columns
+- Use `joinedload()` or `selectinload()` for eager loading relationships
+- Avoid N+1 query problems with proper relationship loading
+- Use `scalar_one()` for single results, `scalars().all()` for multiple results
 
 ### Helper Methods
 - Create private helper methods for common operations (prefix with `_`)
 - Example: `async def _find_project(self, project_uuid: str) -> Project`
+- Use helper methods for complex query building
 
 ### Batch Operations
 - Implement batch creation methods for bulk operations
+- Use `bulk_insert_mappings()` for large datasets
 - Skip existing records to avoid duplicates
 - Log information about skipped records
+- Consider using database-specific bulk operations for performance
+
+### Relationships and Constraints
+- Define relationships using `Mapped` annotations
+- Use foreign key constraints with proper cascade options
+- Implement unique constraints where appropriate
+- Use check constraints for data validation at database level
 
 ### Synchronous Methods for Background Tasks
 - Provide synchronous versions of critical methods for Celery tasks
@@ -388,12 +436,93 @@ See [logging.md](logging.md) for detailed logging conventions and best practices
 
 ### Type Hints
 - Use proper type hints including Optional for nullable fields
-- Use Dict[str, Any] for flexible JSON blob fields
+- Use `dict[str, Any]` for flexible JSON blob fields (Python 3.9+)
 - Import types from typing module consistently
+- Use `Annotated` for field metadata and validation
+
+### Field Validation
+- Use Pydantic validators for complex validation logic
+- Implement custom field types for domain-specific data
+- Use `Field()` for additional constraints and metadata
+- Example:
+  ```python
+  from pydantic import BaseModel, Field, validator
+  from typing import Annotated
+  
+  class ResourceCreatePayload(BaseModel):
+      name: Annotated[str, Field(min_length=1, max_length=255)]
+      email: Annotated[str, Field(regex=r'^[^@]+@[^@]+\.[^@]+$')]
+      age: Annotated[int, Field(ge=0, le=150)]
+      
+      @validator('name')
+      def validate_name(cls, v):
+          if v.strip() != v:
+              raise ValueError('Name cannot have leading/trailing whitespace')
+          return v
+  ```
+
+### Model Configuration
+- Use `Config` class for model behavior configuration
+- Enable `orm_mode` for SQLAlchemy model conversion
+- Configure field aliases for API compatibility
+- Example:
+  ```python
+  class ResourceResponse(BaseModel):
+      uuid: str
+      display_name: str = Field(alias='name')
+      
+      class Config:
+          orm_mode = True
+          allow_population_by_field_name = True
+  ```
+
+## Performance Considerations
+
+### Database Performance
+- Use connection pooling with appropriate pool sizes
+- Implement query result caching where appropriate
+- Use database indexes on frequently queried columns
+- Monitor and optimize slow queries
+- Consider read replicas for read-heavy workloads
+
+### API Performance
+- Implement response caching for expensive operations
+- Use background tasks for long-running operations
+- Implement proper pagination for large datasets
+- Use compression for large responses
+- Monitor API response times and set appropriate timeouts
 
 ## Testing
 
+### Unit Testing
 - Write unit tests for all service methods
 - Mock external dependencies in tests
 - Use fixtures for test data
 - Aim for high test coverage for business logic
+- Test error conditions and edge cases
+
+### Integration Testing
+- Test database operations with a test database
+- Test API endpoints with FastAPI's test client
+- Test authentication and authorization flows
+- Use pytest-asyncio for async test support
+
+### Test Organization
+- Organize tests by feature/module
+- Use descriptive test names that explain the scenario
+- Use parametrized tests for multiple input scenarios
+- Example:
+  ```python
+  import pytest
+  from fastapi.testclient import TestClient
+  
+  @pytest.mark.asyncio
+  async def test_create_project_success():
+      # Test successful project creation
+      pass
+  
+  @pytest.mark.parametrize("invalid_url", ["not-a-url", "", "ftp://invalid"])
+  async def test_create_project_invalid_url(invalid_url):
+      # Test various invalid URL formats
+      pass
+  ```

@@ -33,7 +33,8 @@ class TokenExpiredError(AppError):
 # auth/service.py
 import logging
 from typing import Optional
-from auth.errors import AuthenticationError, AuthServiceUnavailableError, TokenExpiredError
+from proj.auth.errors import AuthenticationError, AuthServiceUnavailableError, TokenExpiredError
+from proj.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,9 @@ class InvalidImageFormatError(AppError):
 # images/service.py (partial - showing third-party error handling)
 import logging
 from PIL import UnidentifiedImageError
-from images.errors import AltTextGenerationError, AltTextRateLimitError, ImageProcessingError, InvalidImageFormatError
+from proj.images.errors import AltTextGenerationError, AltTextRateLimitError, ImageProcessingError, InvalidImageFormatError
+from proj.images.store import ImageStore
+from proj.images.types import ImageGetPayload, ImageResponse, ProcessedImageResponse
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +349,12 @@ class ProjectCreationError(AppError):
         super().__init__(message=message, details=details or {})
 
 # projects/models.py
+from datetime import datetime
 from enum import Enum
+from typing import Optional
+
+from sqlalchemy import BigInteger, String, ForeignKey, func, text, UniqueConstraint, CheckConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from proj.database import Base
 
@@ -387,10 +395,10 @@ class Project(Base):
 # projects/types.py
 from enum import Enum
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, validator
 from datetime import datetime
 
-from proj.types import SortField, PaginationParams
+from proj.types import SortField, PaginationParams, PaginatedResponse
 from proj.projects.models import ProjectType
 
 class ProjectResponse(BaseModel):
@@ -505,8 +513,16 @@ class ProjectCreatePayload(BaseModel):
 
     Used in create operations
     """
-    url: HttpUrl
-    type: ProjectType
+    url: HttpUrl = Field(..., description="Project URL")
+    type: ProjectType = Field(..., description="Project type")
+    
+    @validator('url')
+    def validate_url(cls, v):
+        """Ensure URL is accessible and valid"""
+        url_str = str(v)
+        if not url_str.startswith(('http://', 'https://')):
+            raise ValueError('URL must start with http:// or https://')
+        return v
 
 # projects/store.py
 from sqlalchemy import select, and_, func, delete
@@ -687,10 +703,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound, IntegrityError
 import logging
 
-from proj.projects.types import ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, ProjectResponse, PaginatedResponse, ProjectCreatePayload, ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+from proj.projects.types import (
+    ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, 
+    ProjectResponse, PaginatedResponse, ProjectCreatePayload, 
+    ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+)
 from proj.projects.models import Project
 from proj.projects.store import ProjectStore
-from proj.projects.errors import ProjectNotFoundError, ProjectMultipleFoundError
+from proj.projects.errors import ProjectNotFoundError, ProjectMultipleFoundError, ProjectCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -898,20 +918,24 @@ register_exception_handlers(app)
 app.include_router(projects_router, prefix="/api/v1")
 
 # projects/handler.py
-from fastapi import Depends, APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from typing import List
 
-from proj.projects.types import ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, ProjectResponse, PaginatedResponse, ProjectPListParams, ProjectCreatePayload, ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+from proj.projects.types import (
+    ProjectGetPayload, ProjectGetListPayload, ProjectGetPListPayload, 
+    ProjectResponse, PaginatedResponse, ProjectPListParams, ProjectCreatePayload, 
+    ProjectDeletePayload, ProjectDeleteBatchPayload, ProjectCreateBatchPayload
+)
 from proj.projects.service import ProjectService
-from proj.db import get_db
+from proj.database import get_db
 from proj.auth import get_current_user_id
 
-router = APIRouter()
+router = APIRouter(prefix="/projects", tags=["projects"])
 logger = logging.getLogger(__name__)
 
-@router.get("/projects/{uuid}", response_model=ProjectResponse)
+@router.get("/{uuid}", response_model=ProjectResponse)
 async def get_project(
     uuid: str,
     user_id: int = Depends(get_current_user_id),
@@ -933,7 +957,7 @@ async def get_project(
     logger.info({"uuid": uuid}, "Project retrieved successfully")
     return result
 
-@router.get("/projects", response_model=PaginatedResponse[ProjectResponse])
+@router.get("/", response_model=PaginatedResponse[ProjectResponse])
 async def get_projects_list(
     params: ProjectPListParams = Depends(),
     user_id: int = Depends(get_current_user_id),
@@ -974,7 +998,7 @@ async def get_projects_list(
 
     return result
 
-@router.post("/projects", response_model=ProjectResponse, status_code=201)
+@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     payload: ProjectCreatePayload,
     user_id: int = Depends(get_current_user_id),
@@ -1010,7 +1034,7 @@ async def create_project(
 
     return result
 
-@router.post("/projects/batch", response_model=List[ProjectResponse], status_code=201)
+@router.post("/batch", response_model=List[ProjectResponse], status_code=status.HTTP_201_CREATED)
 async def create_projects_batch(
     payload: List[ProjectCreatePayload],
     user_id: int = Depends(get_current_user_id),
@@ -1046,7 +1070,7 @@ async def create_projects_batch(
 
     return result
 
-@router.delete("/projects/{uuid}", status_code=204)
+@router.delete("/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     uuid: str,
     user_id: int = Depends(get_current_user_id),
@@ -1082,7 +1106,7 @@ async def delete_project(
 
     return None
 
-@router.delete("/projects/batch", status_code=200)
+@router.delete("/batch", status_code=status.HTTP_200_OK)
 async def delete_projects_batch(
     uuids: List[str],
     user_id: int = Depends(get_current_user_id),
