@@ -116,6 +116,58 @@ if err != nil {
 }
 ```
 
+## Architecture Pattern
+
+We use the store -> service -> handler pattern:
+
+- **Store**: Data access, returns domain errors
+- **Service**: Business logic, passes through or wraps errors  
+- **Handler**: HTTP layer, logs errors and converts to HTTP responses
+
+### Error Flow Example
+
+```go
+// Service layer - business logic, minimal logging
+func (s *AccountService) GetAccount(uuid, ledgerUUID, userID string) (*Account, error) {
+    account, err := s.store.GetAccount(uuid, ledgerUUID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to retrieve account: %w", err)
+    }
+    
+    if account.UserID != userID {
+        return nil, ErrUnauthorized
+    }
+    
+    return account, nil
+}
+
+// Handler layer - logs and converts to HTTP
+func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
+    account, err := h.service.GetAccount(input.UUID, input.LedgerUUID, userID)
+    if err != nil {
+        h.logger.Error().Err(err).Msg("unable to get account")
+        
+        if errors.Is(err, ErrUnauthorized) {
+            http.Error(w, "Forbidden", http.StatusForbidden)
+            return
+        }
+        
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
+    
+    h.logger.Info().Str("uuid", account.UUID).Msg("account found")
+    // return success response
+}
+```
+
+### Why This Works
+
+- **Single responsibility**: Each layer has clear logging duties
+- **Error context**: Service adds business context, handler adds operational context
+- **Clean separation**: Business logic stays separate from HTTP concerns
+- **Testability**: Easy to test each layer independently
+
 ## What NOT to Log
 
 - Sensitive data (passwords, tokens)
