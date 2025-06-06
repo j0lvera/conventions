@@ -242,6 +242,66 @@ async def list(self, user_id: int, params: ResourceListParams) -> PaginatedResou
 - Include proper error handling for external service failures
 - Log detailed information about external service interactions
 
+## Pydantic Models and Types
+
+### Payload Models
+- Use descriptive names ending with "Payload" for input models
+- Include all required fields for the operation
+- Example naming: `CreateResourcePayload`, `ResourceGetPayload`, `UpdateResourcePayload`
+
+### Response Models
+- Use descriptive names ending with "Response" for output models
+- Should only include fields that should be exposed to API consumers
+- Example naming: `ResourceResponse`, `PaginatedResourceResponse`
+
+### Pagination Models
+- Use a standard pagination response structure:
+  ```python
+  class PaginatedResourceResponse(BaseModel):
+      items: List[ResourceResponse]
+      total: int
+      limit: int
+      offset: int
+  ```
+
+### List Parameters
+- Create structured parameter models for list operations:
+  ```python
+  class ResourceListParams(BaseModel):
+      limit: int = 10
+      offset: int = 0
+      sort_by: ResourceSortField = ResourceSortField.CREATED_AT
+      sort_direction: SortDirection = SortDirection.DESC
+      filter: Optional[ResourceFilter] = None
+  ```
+
+### Enums
+- Use string enums for sort fields and directions:
+  ```python
+  class ResourceSortField(str, Enum):
+      CREATED_AT = "created_at"
+      UPDATED_AT = "updated_at"
+      NAME = "name"
+  
+  class SortDirection(str, Enum):
+      ASC = "asc"
+      DESC = "desc"
+  ```
+
+### Filter Models
+- Create separate models for filtering criteria:
+  ```python
+  class ResourceFilter(BaseModel):
+      name_contains: Optional[str] = None
+      status: Optional[str] = None
+      created_after: Optional[datetime] = None
+  ```
+
+### Type Hints
+- Use proper type hints including Optional for nullable fields
+- Use Dict[str, Any] for flexible JSON blob fields
+- Import types from typing module consistently
+
 ## Testing
 
 - Write unit tests for all service methods
