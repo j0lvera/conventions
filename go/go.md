@@ -237,7 +237,53 @@ This approach balances performance and idiomatic Go:
    - For collections, an empty slice (`[]Type{}`) is preferred over `nil` as it avoids nil checks when ranging
 3. **Consistency with Standard Library**: This pattern matches how the Go standard library handles return types
 
+## Context Handling
+
+- Always pass `context.Context` as the first parameter in service and store methods
+- Use `context.Background()` sparingly - prefer passing context from the request
+- Set appropriate timeouts for database operations
+- Use context for cancellation and request tracing
+
+```go
+// Good: Pass context from request
+func (h *Handler) Get() echo.HandlerFunc {
+  return func(c echo.Context) error {
+    ctx := c.Request().Context()
+    account, err := h.service.GetAccount(ctx, input.UUID, userID)
+    // ...
+  }
+}
+
+// Service method signature
+func (s *service) GetAccount(ctx context.Context, uuid string, userID int64) (*GetOutput, error)
+```
+
 ## Error Handling
+
+### Custom Error Types
+Define domain-specific errors for better error handling:
+
+```go
+var (
+    ErrNotFound = errors.New("resource not found")
+    ErrUnauthorized = errors.New("unauthorized access")
+    ErrInvalidInput = errors.New("invalid input")
+)
+
+// Use errors.Is for checking
+if errors.Is(err, ErrNotFound) {
+    return c.JSON(http.StatusNotFound, apierr.ErrNotFound)
+}
+```
+
+### Error Wrapping
+Use `fmt.Errorf` with `%w` verb to wrap errors:
+
+```go
+if err != nil {
+    return fmt.Errorf("unable to get account with UUID %s: %w", uuid, err)
+}
+```
 
 ### Handle Errors Once
 When handling errors, follow these principles:
@@ -249,18 +295,134 @@ When handling errors, follow these principles:
 
 **Important**: Handle each error only once. Don't log an error and then return it, as the caller may handle it again.
 
+## Input Validation
+
+- Use struct tags for validation (`validate:"required"`)
+- Validate at the handler layer before calling service
+- Return consistent validation error responses
+
+```go
+// In handler
+if err := c.Validate(input); err != nil {
+    h.logger.Debug().Err(err).Msg("validation failed")
+    return c.JSON(http.StatusBadRequest, apierr.ValidationError(err))
+}
+```
+
 ## Architecture Conventions
 
 - Make sure the implementation in `store.go` correctly implements the interface in `types.go`.
 - Services should return domain types (defined in types.go), not database types. This creates a clear separation of concerns between the service layer and the data access layer where the database implementation details are encapsulated within the store.
 
+## Transaction Handling
+
+For operations that require multiple database calls, use transactions:
+
+```go
+// In store.go
+func (s *store) CreateAccountWithTransaction(ctx context.Context, input CreateInput) (*GetOutput, error) {
+    tx, err := s.db.BeginTx(ctx, nil)
+    if err != nil {
+        return nil, fmt.Errorf("unable to begin transaction: %w", err)
+    }
+    defer tx.Rollback() // Safe to call even after commit
+
+    // Perform operations...
+    
+    if err := tx.Commit(); err != nil {
+        return nil, fmt.Errorf("unable to commit transaction: %w", err)
+    }
+    
+    return result, nil
+}
+```
+
+## HTTP Response Conventions
+
+### Status Codes
+- `200 OK`: Successful GET, PUT
+- `201 Created`: Successful POST
+- `204 No Content`: Successful DELETE
+- `400 Bad Request`: Validation errors
+- `401 Unauthorized`: Authentication required
+- `403 Forbidden`: Insufficient permissions
+- `404 Not Found`: Resource doesn't exist
+- `409 Conflict`: Resource conflict (duplicate)
+- `500 Internal Server Error`: Unexpected errors
+
+### Response Format
+Always return consistent JSON responses:
+
+```go
+// Success response
+return c.JSON(http.StatusOK, map[string]interface{}{
+    "data": result,
+})
+
+// Error response
+return c.JSON(http.StatusBadRequest, map[string]interface{}{
+    "error": "validation failed",
+    "details": validationErrors,
+})
+```
+
 ## Security Conventions
 
-- Never log sensitive information, e.g., passwords, API keys, user ID (use user UUID instead), etc.
+- Never log sensitive information (passwords, API keys, tokens)
+- Use user UUIDs in logs, never internal IDs
+- Validate user ownership of resources before operations
+- Implement rate limiting for public endpoints
+- Use HTTPS in production
+- Validate and sanitize all inputs
+- Use parameterized queries (sqlc handles this)
+
+```go
+// Always verify ownership
+func (s *service) GetAccount(ctx context.Context, uuid string, userID int64) (*GetOutput, error) {
+    // Verify user has access to this resource
+    if !s.hasAccess(ctx, uuid, userID) {
+        return nil, ErrUnauthorized
+    }
+    // ... rest of logic
+}
+```
 
 ## Logging Conventions
 
 Logging should primarily happen in the handler layer, closest to the user.
+
+### Structured Logging
+Always use structured logging with relevant fields:
+
+```go
+h.logger.Debug().
+    Str("uuid", input.UUID).
+    Str("userID", userData.UUID). // Use UUID, not ID
+    Str("operation", "account_retrieval").
+    Msg("processing request")
+```
+
+### Log Levels
+- **Debug**: Request processing, successful operations
+- **Info**: Important business events (rare)
+- **Warn**: Recoverable errors, degraded functionality
+- **Error**: Unrecoverable errors that need attention
+
+### Performance Logging
+Log slow operations:
+
+```go
+start := time.Now()
+result, err := s.store.GetAccount(ctx, uuid, userID)
+duration := time.Since(start)
+
+if duration > 100*time.Millisecond {
+    h.logger.Warn().
+        Dur("duration", duration).
+        Str("operation", "get_account").
+        Msg("slow database operation")
+}
+```
 
 ### Debug Logging
 Always implement debug logging before executing an action using the resource name followed by the action in noun form:
@@ -283,3 +445,28 @@ Common debug log message patterns:
 - Instead of "unable to get user", use "unable to get user with ID <userID>".
 - Instead of "error updating ledger, please try again", use "unable to update ledger with ID <ledgerID>".
 - Always add a Debug statement after error or successful log statements as "querying ledger params" when getting either "unable to find ledger" or "ledger found".
+
+## Testing Conventions
+
+### Test File Structure
+- `handler_test.go` - HTTP handler tests
+- `service_test.go` - Business logic tests  
+- `store_test.go` - Data access tests
+
+### Test Naming
+```go
+func TestService_GetAccount_Success(t *testing.T) {}
+func TestService_GetAccount_NotFound(t *testing.T) {}
+func TestHandler_Create_ValidationError(t *testing.T) {}
+```
+
+### Mock Interfaces
+Use interfaces for easy mocking:
+
+```go
+type MockStore struct{}
+
+func (m *MockStore) GetAccount(ctx context.Context, uuid string, userID int64) (*GetOutput, error) {
+    // Mock implementation
+}
+```
